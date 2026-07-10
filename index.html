@@ -201,6 +201,47 @@ html, body {
 }
 .agent-card .ac-meta { color: var(--ink-soft); margin-top: 1px; }
 
+.completed-header { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.completed-list { max-height: 40vh; }
+.completed-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 6px 8px;
+  font-size: 11.5px;
+}
+.completed-entry .ce-check {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--success-tint);
+  color: var(--success);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+.completed-entry .ce-body { min-width: 0; }
+.completed-entry .ce-patient {
+  font-weight: 700;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.completed-entry .ce-meta {
+  color: var(--ink-soft);
+  margin-top: 1px;
+}
+.completed-entry .ce-duration {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-weight: 700;
+  color: var(--success);
+}
+
 /* ---------- Modal (used by View My Log) ---------- */
 .modal {
   position: fixed;
@@ -896,6 +937,12 @@ input:disabled, textarea:disabled, select:disabled {
 
     <div id="agentsStatus" class="log-status" hidden></div>
     <div id="agentsList" class="logs-list"></div>
+
+    <div class="agents-panel-header completed-header">
+      <h2>Completed Today</h2>
+    </div>
+    <div id="completedStatus" class="log-status" hidden></div>
+    <div id="completedList" class="logs-list completed-list"></div>
   </div>
 </aside>
 
@@ -1117,6 +1164,8 @@ const refreshAgentsBtn = document.getElementById("refreshAgentsBtn");
 const agentsList = document.getElementById("agentsList");
 const agentsStatus = document.getElementById("agentsStatus");
 const agentsLastSync = document.getElementById("agentsLastSync");
+const completedStatus = document.getElementById("completedStatus");
+const completedList = document.getElementById("completedList");
 
 const myLogBtn = document.getElementById("myLogBtn");
 const myLogModal = document.getElementById("myLogModal");
@@ -1748,6 +1797,9 @@ async function endSession() {
   FIELD_IDS.forEach((id) => (payload[id] = els[id].value.trim()));
   payload.loggedByName = getAgentName();
   payload.loggedByEmail = getAgentEmail();
+  payload.durationSeconds = claimStartTime
+    ? Math.max(0, Math.round((Date.now() - new Date(claimStartTime).getTime()) / 1000))
+    : 0;
 
   const patientNameForHint = els.patientName.value.trim();
 
@@ -1774,6 +1826,8 @@ async function endSession() {
     logHint.textContent = `Last logged: ${patientNameForHint} at ${new Date().toLocaleTimeString()}`;
 
     resetFormForNextClaim();
+    // Small delay gives Apps Script a moment to finish writing before we poll.
+    setTimeout(fetchCompletedToday, 1200);
   } catch (err) {
     showStatus("Couldn't reach the sheet. Check your connection or Web App URL. Your session is still active \u2014 try End Session again.", "err", 6000);
   } finally {
@@ -1935,10 +1989,59 @@ async function fetchActiveAgents() {
   }
 }
 
+function renderCompletedToday(entries) {
+  if (!entries || !entries.length) {
+    completedList.innerHTML = '<p class="log-empty">Nothing logged yet today.</p>';
+    return;
+  }
+
+  completedList.innerHTML = entries
+    .map((entry) => {
+      const patient = escapeHtml(entry.patientName || "(no name)");
+      const agent = escapeHtml(entry.agentName || "Unnamed agent");
+      const duration = formatElapsed((entry.durationSeconds || 0) * 1000);
+      return `
+        <div class="completed-entry">
+          <span class="ce-check">
+            <svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"></path></svg>
+          </span>
+          <div class="ce-body">
+            <div class="ce-patient">${patient}</div>
+            <div class="ce-meta"><span class="ce-duration">${duration}</span> &middot; ${agent}</div>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+async function fetchCompletedToday() {
+  if (!WEB_APP_URL || WEB_APP_URL === "PASTE_YOUR_DEPLOYED_WEB_APP_URL_HERE") return;
+
+  try {
+    const res = await fetch(`${WEB_APP_URL}?action=completedToday&limit=25`);
+    if (!res.ok) throw new Error("Bad response.");
+    const data = await res.json();
+    if (!data || data.status === "error") {
+      throw new Error((data && data.message) || "Sheet returned an error.");
+    }
+    renderCompletedToday(data.entries || []);
+    completedStatus.hidden = true;
+  } catch (err) {
+    completedStatus.hidden = false;
+    completedStatus.textContent = "Couldn't load today's completed claims. Make sure the Apps Script is redeployed (see Apps_Script_Code.gs).";
+    completedStatus.className = "log-status err";
+  }
+}
+
 function startAgentsPolling() {
   fetchActiveAgents();
+  fetchCompletedToday();
   clearInterval(agentsPollInterval);
-  agentsPollInterval = setInterval(fetchActiveAgents, AGENTS_POLL_MS);
+  agentsPollInterval = setInterval(() => {
+    fetchActiveAgents();
+    fetchCompletedToday();
+  }, AGENTS_POLL_MS);
   clearInterval(agentsTickInterval);
   agentsTickInterval = setInterval(tickAgentTimers, 1000);
 }
@@ -2054,7 +2157,10 @@ myLogModal.addEventListener("click", (e) => {
 
 agentSignOutBtn.addEventListener("click", signOutAgent);
 
-refreshAgentsBtn.addEventListener("click", fetchActiveAgents);
+refreshAgentsBtn.addEventListener("click", () => {
+  fetchActiveAgents();
+  fetchCompletedToday();
+});
 
 // Best-effort: let the sheet know right away if a tab closes mid-claim,
 // instead of waiting for the server-side stale timeout.
