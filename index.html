@@ -3,30 +3,30 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>TPA Call Log</title>
+<title>Account/Patient Log</title>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 :root {
-  --bg: #eef2f1;
+  --bg: #f4f5f7;
   --page-max: 560px;
   --panel: #ffffff;
-  --ink: #1b2b2e;
-  --ink-soft: #5b6a6d;
-  --teal: #0f5257;
-  --teal-dark: #0b3e42;
-  --teal-tint: #e4eeee;
-  --amber: #c97a2b;
-  --amber-dark: #a7621f;
-  --amber-tint: #f6e9da;
-  --success: #3f7d58;
-  --success-tint: #e4f0e8;
-  --danger: #a83b3b;
-  --border: #dde3e0;
-  --terminal-bg: #0e1f1e;
-  --terminal-fg: #b9f2c8;
-  --terminal-dim: #6f9f85;
+  --ink: #10182b;
+  --ink-soft: #64748b;
+  --teal: #1e3a5f;
+  --teal-dark: #142b45;
+  --teal-tint: #e7ecf2;
+  --amber: #9c6b23;
+  --amber-dark: #7e5619;
+  --amber-tint: #f3e9da;
+  --success: #15803d;
+  --success-tint: #e3f3e8;
+  --danger: #b42318;
+  --border: #e2e5ea;
+  --terminal-bg: #101826;
+  --terminal-fg: #d7dee8;
+  --terminal-dim: #7c8aa0;
   --radius: 10px;
-  --shadow: 0 1px 2px rgba(15, 40, 40, 0.06), 0 4px 14px rgba(15, 40, 40, 0.06);
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 4px 14px rgba(16, 24, 40, 0.06);
 }
 
 * { box-sizing: border-box; }
@@ -263,26 +263,27 @@ html, body {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 10px 14px;
-  background: var(--teal-dark);
-  color: #fff;
+  padding: 11px 14px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  color: var(--ink);
   flex: 0 0 auto;
 }
 .brand { display: flex; align-items: center; gap: 9px; }
 .brand-mark {
-  width: 30px; height: 30px; border-radius: 8px;
+  width: 30px; height: 30px; border-radius: 7px;
   background: var(--teal);
   display: flex; align-items: center; justify-content: center;
   flex: 0 0 auto;
 }
 .brand-mark svg { width: 17px; height: 17px; }
-.brand-text .eyebrow { color: #bcd8d6; margin: 0; }
-.brand-text h1 { font-size: 15px; margin: 0; font-weight: 700; letter-spacing: 0.1px; }
+.brand-text .eyebrow { margin: 0; }
+.brand-text h1 { font-size: 15px; margin: 0; font-weight: 700; letter-spacing: 0.1px; color: var(--ink); }
 
 .icon-btn {
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.18);
-  color: #eaf3f2;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--ink-soft);
   width: 28px;
   height: 28px;
   border-radius: 7px;
@@ -290,10 +291,10 @@ html, body {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
   flex: 0 0 auto;
 }
-.icon-btn:hover { background: rgba(255,255,255,0.18); }
+.icon-btn:hover { background: var(--teal-tint); color: var(--teal); border-color: var(--teal-tint); }
 
 .eyebrow {
   font-size: 10px;
@@ -302,7 +303,19 @@ html, body {
   font-weight: 700;
   color: var(--ink-soft);
   margin: 0 0 5px;
+  display: flex;
+  align-items: center;
 }
+.section-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 6px;
+  flex: 0 0 auto;
+}
+.section-dot-navy { background: var(--teal); }
+.section-dot-gold { background: var(--amber); }
 
 /* ---------- Status bar ---------- */
 .status-bar {
@@ -336,10 +349,8 @@ html, body {
   overflow: hidden;
   border: 1px solid var(--border);
 }
-.tab-strip { width: 5px; flex: 0 0 5px; }
-.tab-teal .tab-strip { background: var(--teal); }
-.tab-amber .tab-strip { background: var(--amber); }
-.section-inner { padding: 10px 12px 12px; flex: 1; min-width: 0; }
+.tab-strip { display: none; }
+.section-inner { padding: 12px 14px 14px; flex: 1; min-width: 0; }
 
 .field { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
 .field:last-child { margin-bottom: 0; }
@@ -510,21 +521,17 @@ input:disabled, textarea:disabled, select:disabled {
   border-radius: var(--radius);
   overflow: hidden;
   box-shadow: var(--shadow);
-  border: 1px solid #0a1615;
+  border: 1px solid #0a1420;
 }
 .terminal-header {
-  background: #16302e;
+  background: #16233a;
   padding: 6px 10px;
   display: flex;
   align-items: center;
   gap: 6px;
+  color: var(--terminal-dim);
 }
-.dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
-.dot-r { background: #e2665a; }
-.dot-y { background: #e0b04b; }
-.dot-g { background: #6bbf8a; }
 .terminal-title {
-  margin-left: 6px;
   font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -568,22 +575,26 @@ input:disabled, textarea:disabled, select:disabled {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  border: none;
+  border: 1px solid transparent;
   border-radius: 7px;
   padding: 8px 12px;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
-  transition: transform 0.05s ease, filter 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.05s ease;
 }
 .btn:active { transform: translateY(1px); }
-.btn-amber { background: var(--amber); color: #fff; }
-.btn-amber:hover { background: var(--amber-dark); }
+.btn-amber {
+  background: var(--panel);
+  color: var(--teal);
+  border-color: var(--teal);
+}
+.btn-amber:hover { background: var(--teal-tint); }
 .btn-teal { background: var(--teal); color: #fff; }
 .btn-teal:hover { background: var(--teal-dark); }
-.btn-ghost { background: #eef1f0; color: var(--ink-soft); }
-.btn-ghost:hover { background: #e2e7e5; }
-.btn:disabled { opacity: 0.6; cursor: default; }
+.btn-ghost { background: var(--bg); color: var(--ink-soft); border-color: var(--border); }
+.btn-ghost:hover { background: var(--border); color: var(--ink); }
+.btn:disabled { opacity: 0.55; cursor: default; }
 
 /* Scrollbar polish */
 .form-scroll::-webkit-scrollbar { width: 8px; }
@@ -595,9 +606,9 @@ input:disabled, textarea:disabled, select:disabled {
 <div id="signInGate" class="signin-gate">
   <div class="signin-gate-card">
     <div class="signin-gate-mark">
-      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff" stroke-width="2"><rect x="6" y="3" width="12" height="18" rx="2"></rect><path d="M9 3h6v2a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V3z" fill="#c97a2b" stroke="none"></path><path d="M9 13l2 2 4-4" stroke="#0f5257"></path></svg>
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff" stroke-width="2"><rect x="6" y="3" width="12" height="18" rx="2"></rect><path d="M9 3h6v2a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V3z" fill="#9c6b23" stroke="none"></path><path d="M9 13l2 2 4-4" stroke="#1e3a5f"></path></svg>
     </div>
-    <h1>TPA Call Log</h1>
+    <h1>Account/Patient Log</h1>
     <p>Sign in with your Google account to continue. This is how the Agents Working panel knows who's working what.</p>
     <div id="googleSignInGateBtn" class="signin-gate-btn"></div>
     <p class="mini-hint" id="signInGateHint"></p>
@@ -610,11 +621,11 @@ input:disabled, textarea:disabled, select:disabled {
   <header class="topbar">
     <div class="brand">
       <div class="brand-mark">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="6" y="3" width="12" height="18" rx="2"></rect><path d="M9 3h6v2a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V3z" fill="#c97a2b" stroke="none"></path><path d="M9 13l2 2 4-4" stroke="#0f5257"></path></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="6" y="3" width="12" height="18" rx="2"></rect><path d="M9 3h6v2a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V3z" fill="#9c6b23" stroke="none"></path><path d="M9 13l2 2 4-4" stroke="#1e3a5f"></path></svg>
       </div>
       <div class="brand-text">
         <p class="eyebrow">Behavioral &middot; Underpaid</p>
-        <h1>TPA Call Log</h1>
+        <h1>Account/Patient Log</h1>
       </div>
     </div>
     <button id="myLogBtn" class="icon-btn" title="View my logged claims" aria-label="View My Log">
@@ -626,10 +637,10 @@ input:disabled, textarea:disabled, select:disabled {
 
   <main class="form-scroll">
 
-    <section class="tab-section tab-teal">
+    <section class="tab-section">
       <div class="tab-strip" aria-hidden="true"></div>
       <div class="section-inner">
-        <p class="eyebrow">Patient / Claim Info</p>
+        <p class="eyebrow"><span class="section-dot section-dot-navy"></span>Patient / Claim Info</p>
 
         <div id="claimGateStart" class="claim-gate">
           <div class="claim-gate-text">
@@ -696,10 +707,10 @@ input:disabled, textarea:disabled, select:disabled {
       </div>
     </section>
 
-    <section class="tab-section tab-amber">
+    <section class="tab-section">
       <div class="tab-strip" aria-hidden="true"></div>
       <div class="section-inner">
-        <p class="eyebrow">CMD Template &middot; TPA Call</p>
+        <p class="eyebrow"><span class="section-dot section-dot-gold"></span>CMD Template &middot; TPA Call</p>
 
         <div class="field-row">
           <label class="field">
@@ -771,7 +782,7 @@ input:disabled, textarea:disabled, select:disabled {
 
     <section class="terminal-card">
       <div class="terminal-header">
-        <span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span>
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 9l-3 3 3 3"></path><path d="M16 9l3 3-3 3"></path><path d="M13 5l-2 14"></path></svg>
         <span class="terminal-title">CMD preview</span>
       </div>
       <pre id="cmdPreview" class="terminal-body"></pre>
