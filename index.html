@@ -1708,6 +1708,21 @@ async function copyTemplate() {
 }
 
 // ---------- End Session: log to sheet, then stop timer & lock form ----------
+// Clears the form and ends the local session/timer so the next claim
+// starts clean. Used both after a successful log and when an agent
+// declines to log a blank claim.
+function resetFormForNextClaim() {
+  FIELD_IDS.forEach((id) => (els[id].value = ""));
+  els.cmdDate.value = todayString();
+  actionTemplateSelect.value = "";
+  lastAppliedTemplateKey = "";
+  els.repRef.placeholder = DEFAULT_REP_REF_PLACEHOLDER;
+  syncAllClearButtons();
+  endClaimSession();
+  saveNow();
+  updatePreview();
+}
+
 async function endSession() {
   if (!claimStarted) {
     showStatus("Click \u201cWork on a Claim\u201d first.", "err");
@@ -1721,7 +1736,11 @@ async function endSession() {
 
   if (!els.patientName.value.trim()) {
     const ok = await showConfirm("Patient Name is empty. Log this claim anyway?");
-    if (!ok) return;
+    if (!ok) {
+      resetFormForNextClaim();
+      showStatus("Claim discarded \u2014 nothing was logged.", "info", 2500);
+      return;
+    }
   }
 
   const timestamp = new Date().toISOString();
@@ -1754,16 +1773,7 @@ async function endSession() {
     showStatus("Logged to sheet \u2713 \u2014 session ended.", "ok");
     logHint.textContent = `Last logged: ${patientNameForHint} at ${new Date().toLocaleTimeString()}`;
 
-    // Stop the timer, lock the form back up, and clear it for the next claim.
-    FIELD_IDS.forEach((id) => (els[id].value = ""));
-    els.cmdDate.value = todayString();
-    actionTemplateSelect.value = "";
-    lastAppliedTemplateKey = "";
-    els.repRef.placeholder = DEFAULT_REP_REF_PLACEHOLDER;
-    syncAllClearButtons();
-    endClaimSession();
-    saveNow();
-    updatePreview();
+    resetFormForNextClaim();
   } catch (err) {
     showStatus("Couldn't reach the sheet. Check your connection or Web App URL. Your session is still active \u2014 try End Session again.", "err", 6000);
   } finally {
