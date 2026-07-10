@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TPA Call Log</title>
+<style>
+:root {
+  --bg: #eef2f1;
+  --page-max: 560px;
+  --panel: #ffffff;
+  --ink: #1b2b2e;
+  --ink-soft: #5b6a6d;
+  --teal: #0f5257;
+  --teal-dark: #0b3e42;
+  --teal-tint: #e4eeee;
+  --amber: #c97a2b;
+  --amber-dark: #a7621f;
+  --amber-tint: #f6e9da;
+  --success: #3f7d58;
+  --success-tint: #e4f0e8;
+  --danger: #a83b3b;
+  --border: #dde3e0;
+  --terminal-bg: #0e1f1e;
+  --terminal-fg: #b9f2c8;
+  --terminal-dim: #6f9f85;
+  --radius: 10px;
+  --shadow: 0 1px 2px rgba(15, 40, 40, 0.06), 0 4px 14px rgba(15, 40, 40, 0.06);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page {
+  max-width: var(--page-max);
+  margin: 0 auto;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+@media (min-width: 640px) {
+  .page {
+    min-height: calc(100vh - 32px);
+    margin: 16px auto;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(11, 40, 40, 0.12);
+  }
+}
+
+/* ---------- Topbar ---------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 16px 18px;
+  background: var(--teal-dark);
+  color: #fff;
+  flex: 0 0 auto;
+}
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand-mark {
+  width: 36px; height: 36px; border-radius: 9px;
+  background: var(--teal);
+  display: flex; align-items: center; justify-content: center;
+  flex: 0 0 auto;
+}
+.brand-mark svg { width: 20px; height: 20px; }
+.brand-text .eyebrow { color: #bcd8d6; margin: 0; }
+.brand-text h1 { font-size: 17px; margin: 1px 0 0; font-weight: 700; letter-spacing: 0.1px; }
+
+.icon-btn {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.18);
+  color: #eaf3f2;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  flex: 0 0 auto;
+}
+.icon-btn:hover { background: rgba(255,255,255,0.18); }
+
+.eyebrow {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  font-weight: 700;
+  color: var(--ink-soft);
+  margin: 0 0 8px;
+}
+
+/* ---------- Status bar ---------- */
+.status-bar {
+  flex: 0 0 auto;
+  padding: 9px 18px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+}
+.status-bar.ok { background: var(--success-tint); color: var(--success); }
+.status-bar.err { background: #f6e2e2; color: var(--danger); }
+.status-bar.info { background: var(--teal-tint); color: var(--teal-dark); }
+
+/* ---------- Scroll area ---------- */
+.form-scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 16px 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--bg);
+}
+
+/* ---------- Tab sections (folder-tab motif) ---------- */
+.tab-section {
+  display: flex;
+  background: var(--panel);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.tab-strip { width: 6px; flex: 0 0 6px; }
+.tab-teal .tab-strip { background: var(--teal); }
+.tab-amber .tab-strip { background: var(--amber); }
+.section-inner { padding: 16px 18px 18px; flex: 1; min-width: 0; }
+
+.field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.field:last-child { margin-bottom: 0; }
+.field > span {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.field-row { display: flex; gap: 12px; }
+.field-row .field { flex: 1; min-width: 0; }
+
+input, textarea {
+  font-family: inherit;
+  font-size: 13.5px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: #fbfcfb;
+  color: var(--ink);
+  outline: none;
+  width: 100%;
+}
+input:focus, textarea:focus {
+  border-color: var(--teal);
+  background: #fff;
+  box-shadow: 0 0 0 3px var(--teal-tint);
+}
+
+.mini-link {
+  background: none;
+  border: none;
+  color: var(--amber-dark);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: none;
+  cursor: pointer;
+  padding: 0;
+}
+.mini-link:hover { text-decoration: underline; }
+
+/* ---------- Terminal preview ---------- */
+.terminal-card {
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  border: 1px solid #0a1615;
+}
+.terminal-header {
+  background: #16302e;
+  padding: 9px 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.dot-r { background: #e2665a; }
+.dot-y { background: #e0b04b; }
+.dot-g { background: #6bbf8a; }
+.terminal-title {
+  margin-left: 6px;
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--terminal-dim);
+  font-weight: 700;
+}
+.terminal-body {
+  margin: 0;
+  background: var(--terminal-bg);
+  color: var(--terminal-fg);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 12.5px;
+  line-height: 1.6;
+  padding: 15px 15px 17px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-height: 60px;
+}
+
+.log-hint {
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  text-align: center;
+  margin: -4px 0 2px;
+  min-height: 14px;
+}
+
+/* ---------- Action bar ---------- */
+.action-bar {
+  flex: 0 0 auto;
+  padding: 14px 16px 18px;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.btn-row { display: flex; gap: 8px; }
+.btn-row .btn { flex: 1; }
+
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: none;
+  border-radius: 8px;
+  padding: 11px 12px;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.05s ease, filter 0.15s ease;
+}
+.btn:active { transform: translateY(1px); }
+.btn-amber { background: var(--amber); color: #fff; }
+.btn-amber:hover { background: var(--amber-dark); }
+.btn-teal { background: var(--teal); color: #fff; }
+.btn-teal:hover { background: var(--teal-dark); }
+.btn-ghost { background: #eef1f0; color: var(--ink-soft); }
+.btn-ghost:hover { background: #e2e7e5; }
+.btn:disabled { opacity: 0.6; cursor: default; }
+
+/* ---------- Modal ---------- */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 25, 25, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 10;
+}
+.modal-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  width: 100%;
+  max-width: 380px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.modal-card h2 { font-size: 16px; margin: 0 0 6px; color: var(--ink); }
+.modal-card p { font-size: 12px; color: var(--ink-soft); margin: 0 0 10px; line-height: 1.5; }
+.modal-card input, .modal-card textarea { margin-bottom: 10px; }
+.modal-card textarea { resize: vertical; font-size: 12px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.hint { font-size: 11px !important; }
+
+/* Scrollbar polish */
+.form-scroll::-webkit-scrollbar { width: 8px; }
+.form-scroll::-webkit-scrollbar-thumb { background: #d3dad8; border-radius: 8px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="6" y="3" width="12" height="18" rx="2"></rect><path d="M9 3h6v2a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V3z" fill="#c97a2b" stroke="none"></path><path d="M9 13l2 2 4-4" stroke="#0f5257"></path></svg>
+      </div>
+      <div class="brand-text">
+        <p class="eyebrow">Behavioral · Underpaid</p>
+        <h1>TPA Call Log</h1>
+      </div>
+    </div>
+    <button id="settingsBtn" class="icon-btn" title="Sheet connection settings" aria-label="Settings">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+    </button>
+  </header>
+
+  <div id="statusBar" class="status-bar" hidden></div>
+
+  <main class="form-scroll">
+
+    <section class="tab-section tab-teal">
+      <div class="tab-strip" aria-hidden="true"></div>
+      <div class="section-inner">
+        <p class="eyebrow">Patient / Claim Info</p>
+
+        <label class="field">
+          <span>Patient Name</span>
+          <input type="text" id="patientName" placeholder="Last, First" autocomplete="off" />
+        </label>
+
+        <div class="field-row">
+          <label class="field">
+            <span>Facility</span>
+            <input type="text" id="facility" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>Carrier</span>
+            <input type="text" id="carrierTop" autocomplete="off" />
+          </label>
+        </div>
+
+        <div class="field-row">
+          <label class="field">
+            <span>DOB</span>
+            <input type="text" id="dob" placeholder="MM/DD/YYYY" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>Member ID</span>
+            <input type="text" id="memberId" autocomplete="off" />
+          </label>
+        </div>
+
+        <div class="field-row">
+          <label class="field">
+            <span>TIN</span>
+            <input type="text" id="tin" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>NPI</span>
+            <input type="text" id="npi" autocomplete="off" />
+          </label>
+        </div>
+
+        <div class="field-row">
+          <label class="field">
+            <span>DOS</span>
+            <input type="text" id="dos" placeholder="MM/DD/YYYY or range" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span># of Claims</span>
+            <input type="number" min="0" inputmode="numeric" id="numClaims" autocomplete="off" />
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <section class="tab-section tab-amber">
+      <div class="tab-strip" aria-hidden="true"></div>
+      <div class="section-inner">
+        <p class="eyebrow">CMD Template · TPA Call</p>
+
+        <div class="field-row">
+          <label class="field">
+            <span>Date</span>
+            <input type="text" id="cmdDate" placeholder="MM/DD/YYYY" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>Carrier
+              <button type="button" id="syncCarrierBtn" class="mini-link">use above</button>
+            </span>
+            <input type="text" id="cmdCarrier" autocomplete="off" />
+          </label>
+        </div>
+
+        <label class="field">
+          <span>TPA</span>
+          <input type="text" id="tpa" autocomplete="off" />
+        </label>
+
+        <div class="field-row">
+          <label class="field">
+            <span>Billed Amount</span>
+            <input type="text" id="billedAmount" placeholder="$0.00" inputmode="decimal" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>Original Allowed</span>
+            <input type="text" id="originalAllowed" placeholder="$0.00" inputmode="decimal" autocomplete="off" />
+          </label>
+        </div>
+
+        <label class="field">
+          <span>Action</span>
+          <input type="text" id="action" list="actionPresets" placeholder="Pick a preset or type your own" autocomplete="off" />
+          <datalist id="actionPresets"></datalist>
+        </label>
+
+        <label class="field">
+          <span>Rep &amp; Ref#</span>
+          <input type="text" id="repRef" placeholder="Rep name / callback ref #" autocomplete="off" />
+        </label>
+      </div>
+    </section>
+
+    <section class="terminal-card">
+      <div class="terminal-header">
+        <span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span>
+        <span class="terminal-title">CMD preview</span>
+      </div>
+      <pre id="cmdPreview" class="terminal-body"></pre>
+    </section>
+
+    <p class="log-hint" id="logHint"></p>
+
+  </main>
+
+  <footer class="action-bar">
+    <button id="copyBtn" class="btn btn-amber">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+      Copy CMD Template
+    </button>
+    <div class="btn-row">
+      <button id="logBtn" class="btn btn-teal">Log Entry</button>
+      <button id="resetBtn" class="btn btn-ghost">Reset Form</button>
+    </div>
+  </footer>
+
+</div>
+
+<div id="settingsModal" class="modal" hidden>
+  <div class="modal-card">
+    <h2>Action presets</h2>
+    <p>This page logs to the <strong>Takahami Medical Billing \u2014 Account Entries</strong> sheet automatically. Nothing to connect here \u2014 just edit the Action dropdown presets below, one per line.</p>
+    <textarea id="actionPresetsInput" rows="6" placeholder="Reprocessing requested&#10;Appeal submitted&#10;Escalated to supervisor"></textarea>
+    <div class="modal-actions">
+      <button id="closeSettingsBtn" class="btn btn-ghost">Cancel</button>
+      <button id="saveSettingsBtn" class="btn btn-teal">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---------- Hardcoded sheet connection ----------
+// Logs to: "Takahami Medical Billing — Account Entries"
+// (https://docs.google.com/spreadsheets/d/13_GgCqU1Ey8PUj26AlHQWlrHlChw1uptL8dyO3Fh0bc)
+//
+// After deploying Apps_Script_Code.gs as a Web App (see README.md Part 1),
+// paste the resulting /exec URL below. Every agent using this page will log
+// to the same sheet — no per-agent setup needed.
+const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbx2UWHVh3w1EvZFdpIHv9F7PNJFGoeCEU__30ZmjskgbuUC8CipmN0Ny9w476wC6lgpUQ/exec";
+
+// ---------- Constants ----------
+const DRAFT_KEY = "tpaCallLog.draftV1";
+const SETTINGS_KEY = "tpaCallLog.settingsV1";
+
+const DEFAULT_PRESETS = [
+  "Reprocessing requested \u2013 TPA to reprocess claim(s)",
+  "Appeal submitted \u2013 awaiting response",
+  "Escalated to supervisor",
+  "Payment confirmed \u2013 check pending mail",
+  "Additional info requested by TPA",
+  "No resolution \u2013 callback scheduled",
+  "Claim denied \u2013 reason provided, appeal to follow"
+];
+
+const FIELD_IDS = [
+  "patientName", "facility", "carrierTop", "dob", "memberId", "tin", "npi", "dos", "numClaims",
+  "cmdDate", "cmdCarrier", "tpa", "billedAmount", "originalAllowed", "action", "repRef"
+];
+
+const els = {};
+FIELD_IDS.forEach((id) => (els[id] = document.getElementById(id)));
+
+const cmdPreview = document.getElementById("cmdPreview");
+const statusBar = document.getElementById("statusBar");
+const logHint = document.getElementById("logHint");
+
+const copyBtn = document.getElementById("copyBtn");
+const logBtn = document.getElementById("logBtn");
+const resetBtn = document.getElementById("resetBtn");
+const syncCarrierBtn = document.getElementById("syncCarrierBtn");
+
+const settingsModal = document.getElementById("settingsModal");
+const settingsBtn = document.getElementById("settingsBtn");
+const closeSettingsBtn = document.getElementById("closeSettingsBtn");
+const saveSettingsBtn = document.getElementById("saveSettingsBtn");
+const actionPresetsInput = document.getElementById("actionPresetsInput");
+const actionPresetsList = document.getElementById("actionPresets");
+
+let settings = { presets: DEFAULT_PRESETS };
+
+// ---------- Storage helpers (localStorage — this is a plain website) ----------
+function storageGet(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+function storageSet(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (e) {
+    // storage unavailable (e.g. private browsing) — fail silently
+  }
+}
+
+// ---------- Init ----------
+function init() {
+  const savedSettings = storageGet(SETTINGS_KEY);
+  if (savedSettings) {
+    settings = {
+      presets: savedSettings.presets && savedSettings.presets.length ? savedSettings.presets : DEFAULT_PRESETS
+    };
+  }
+  renderPresets();
+
+  const draft = storageGet(DRAFT_KEY);
+  if (draft) {
+    FIELD_IDS.forEach((id) => {
+      if (draft[id] !== undefined) els[id].value = draft[id];
+    });
+  }
+  if (!els.cmdDate.value) els.cmdDate.value = todayString();
+
+  updatePreview();
+}
+
+function todayString() {
+  const d = new Date();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${mm}/${dd}/${d.getFullYear()}`;
+}
+
+function renderPresets() {
+  actionPresetsList.innerHTML = "";
+  settings.presets.forEach((p) => {
+    const opt = document.createElement("option");
+    opt.value = p;
+    actionPresetsList.appendChild(opt);
+  });
+}
+
+// ---------- Draft autosave ----------
+let saveTimer = null;
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    const draft = {};
+    FIELD_IDS.forEach((id) => (draft[id] = els[id].value));
+    storageSet(DRAFT_KEY, draft);
+  }, 250);
+}
+
+// ---------- Currency formatting ----------
+function formatCurrencyOnBlur(input) {
+  const raw = input.value.replace(/[^0-9.]/g, "");
+  if (!raw) {
+    input.value = "";
+    return;
+  }
+  const num = parseFloat(raw);
+  if (isNaN(num)) {
+    input.value = "";
+    return;
+  }
+  input.value = "$" + num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// ---------- CMD template ----------
+function buildTemplate() {
+  const v = (id) => els[id].value.trim();
+  return (
+`*CMD Template*
+Date: ${v("cmdDate")}
+Carrier: ${v("cmdCarrier")}
+TPA: ${v("tpa")}
+Billed Amount: ${v("billedAmount")}
+Original Allowed Amount: ${v("originalAllowed")}
+Action: ${v("action")}
+Rep & Ref#: ${v("repRef")}`
+  );
+}
+
+function updatePreview() {
+  cmdPreview.textContent = buildTemplate();
+}
+
+// ---------- Status messages ----------
+let statusTimer = null;
+function showStatus(message, kind = "info", timeout = 3200) {
+  clearTimeout(statusTimer);
+  statusBar.textContent = message;
+  statusBar.className = "status-bar " + kind;
+  statusBar.hidden = false;
+  if (timeout) {
+    statusTimer = setTimeout(() => {
+      statusBar.hidden = true;
+    }, timeout);
+  }
+}
+
+// ---------- Copy ----------
+async function copyTemplate() {
+  const text = buildTemplate();
+  try {
+    await navigator.clipboard.writeText(text);
+    showStatus("CMD template copied to clipboard.", "ok");
+  } catch (err) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand("copy");
+      showStatus("CMD template copied to clipboard.", "ok");
+    } catch (e2) {
+      showStatus("Couldn't copy automatically \u2014 select and copy manually.", "err");
+    }
+    document.body.removeChild(ta);
+  }
+}
+
+// ---------- Reset ----------
+function resetForm() {
+  const ok = window.confirm("Reset the form? This clears all fields for the current entry.");
+  if (!ok) return;
+  FIELD_IDS.forEach((id) => (els[id].value = ""));
+  els.cmdDate.value = todayString();
+  storageSet(DRAFT_KEY, {});
+  updatePreview();
+  logHint.textContent = "";
+  showStatus("Form reset.", "info", 1800);
+}
+
+// ---------- Log to Google Sheet ----------
+function validate() {
+  const missing = [];
+  if (!els.patientName.value.trim()) missing.push("Patient Name");
+  if (!els.carrierTop.value.trim()) missing.push("Carrier");
+  return missing;
+}
+
+async function logEntry() {
+  if (!WEB_APP_URL || WEB_APP_URL === "https://script.google.com/macros/s/AKfycbx2UWHVh3w1EvZFdpIHv9F7PNJFGoeCEU__30ZmjskgbuUC8CipmN0Ny9w476wC6lgpUQ/exec") {
+    showStatus("Sheet isn't connected yet \u2014 deploy the Apps Script and paste the URL into WEB_APP_URL in index.html.", "err", 6000);
+    return;
+  }
+
+  const missing = validate();
+  if (missing.length) {
+    showStatus(`Fill in required field(s): ${missing.join(", ")}`, "err", 4000);
+    return;
+  }
+
+  const timestamp = new Date().toISOString();
+  const payload = { timestamp };
+  FIELD_IDS.forEach((id) => (payload[id] = els[id].value.trim()));
+
+  logBtn.disabled = true;
+  logBtn.textContent = "Logging\u2026";
+  showStatus("Sending entry to your log sheet\u2026", "info", 0);
+
+  try {
+    const res = await fetch(WEB_APP_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload)
+    });
+
+    let ok = res.ok;
+    try {
+      const data = await res.json();
+      ok = ok && data && data.status !== "error";
+    } catch (_) {
+      // Non-JSON response; rely on res.ok
+    }
+
+    if (ok) {
+      showStatus("Logged to sheet \u2713", "ok");
+      logHint.textContent = `Last logged: ${els.patientName.value.trim()} at ${new Date().toLocaleTimeString()}`;
+    } else {
+      showStatus("Sheet responded with an error. Check the Web App URL / deployment.", "err", 5000);
+    }
+  } catch (err) {
+    showStatus("Couldn't reach the sheet. Check your connection or Web App URL in Settings.", "err", 5000);
+  } finally {
+    logBtn.disabled = false;
+    logBtn.textContent = "Log Entry";
+  }
+}
+
+// ---------- Settings modal ----------
+function openSettings() {
+  actionPresetsInput.value = settings.presets.join("\n");
+  settingsModal.hidden = false;
+}
+function closeSettings() {
+  settingsModal.hidden = true;
+}
+function saveSettings() {
+  const presets = actionPresetsInput.value
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  settings = { presets: presets.length ? presets : DEFAULT_PRESETS };
+  storageSet(SETTINGS_KEY, settings);
+  renderPresets();
+  closeSettings();
+  showStatus("Settings saved.", "ok", 2000);
+}
+
+// ---------- Event wiring ----------
+FIELD_IDS.forEach((id) => {
+  els[id].addEventListener("input", () => {
+    updatePreview();
+    scheduleSave();
+  });
+});
+
+["billedAmount", "originalAllowed"].forEach((id) => {
+  els[id].addEventListener("blur", () => {
+    formatCurrencyOnBlur(els[id]);
+    updatePreview();
+    scheduleSave();
+  });
+});
+
+syncCarrierBtn.addEventListener("click", () => {
+  els.cmdCarrier.value = els.carrierTop.value;
+  updatePreview();
+  scheduleSave();
+});
+
+copyBtn.addEventListener("click", copyTemplate);
+logBtn.addEventListener("click", logEntry);
+resetBtn.addEventListener("click", resetForm);
+
+settingsBtn.addEventListener("click", openSettings);
+closeSettingsBtn.addEventListener("click", closeSettings);
+saveSettingsBtn.addEventListener("click", saveSettings);
+settingsModal.addEventListener("click", (e) => {
+  if (e.target === settingsModal) closeSettings();
+});
+
+init();
+</script>
+</body>
+</html>
