@@ -102,12 +102,40 @@ html, body {
   color: var(--teal-dark);
 }
 .agent-identity { margin-bottom: 12px; min-height: 40px; }
-.agent-signed-out {
+
+/* ---------- Sign-in gate (blocks the app until signed in) ---------- */
+.signin-gate {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(160deg, var(--teal-dark), var(--teal));
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 50;
 }
+.signin-gate-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 32px 26px;
+  max-width: 360px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+}
+.signin-gate-mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
+  background: var(--teal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+}
+.signin-gate-card h1 { font-size: 18px; margin: 0 0 8px; color: var(--ink); }
+.signin-gate-card p { font-size: 13px; color: var(--ink-soft); margin: 0 0 18px; line-height: 1.5; }
+.signin-gate-btn { display: flex; justify-content: center; margin-bottom: 8px; min-height: 40px; }
 .agent-signed-in {
   display: flex;
   align-items: center;
@@ -413,8 +441,6 @@ input:disabled, textarea:disabled, select:disabled {
   flex-direction: column;
   gap: 8px;
 }
-.btn-row { display: flex; gap: 8px; }
-.btn-row .btn { flex: 1; }
 
 .btn {
   display: flex;
@@ -444,6 +470,19 @@ input:disabled, textarea:disabled, select:disabled {
 </style>
 </head>
 <body>
+
+<div id="signInGate" class="signin-gate">
+  <div class="signin-gate-card">
+    <div class="signin-gate-mark">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff" stroke-width="2"><rect x="6" y="3" width="12" height="18" rx="2"></rect><path d="M9 3h6v2a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V3z" fill="#c97a2b" stroke="none"></path><path d="M9 13l2 2 4-4" stroke="#0f5257"></path></svg>
+    </div>
+    <h1>TPA Call Log</h1>
+    <p>Sign in with your Google account to continue. This is how the Agents Working panel knows who's working what.</p>
+    <div id="googleSignInGateBtn" class="signin-gate-btn"></div>
+    <p class="mini-hint" id="signInGateHint"></p>
+  </div>
+</div>
+
 <div class="app-shell">
 <div class="page">
 
@@ -623,10 +662,7 @@ input:disabled, textarea:disabled, select:disabled {
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
       Copy CMD Template
     </button>
-    <div class="btn-row">
-      <button id="endSessionBtn" class="btn btn-teal">End Session</button>
-      <button id="resetBtn" class="btn btn-ghost">Reset Form</button>
-    </div>
+    <button id="endSessionBtn" class="btn btn-teal">End Session</button>
   </footer>
 
 </div>
@@ -639,10 +675,6 @@ input:disabled, textarea:disabled, select:disabled {
     </div>
 
     <div class="agent-identity">
-      <div id="agentSignedOut" class="agent-signed-out">
-        <div id="googleSignInBtn"></div>
-        <p class="mini-hint" id="agentIdentityHint">Sign in so teammates can see who's working what.</p>
-      </div>
       <div id="agentSignedIn" class="agent-signed-in" hidden>
         <img id="agentAvatar" class="agent-avatar" alt="" />
         <div class="agent-signed-in-text">
@@ -712,7 +744,6 @@ const logHint = document.getElementById("logHint");
 
 const copyBtn = document.getElementById("copyBtn");
 const endSessionBtn = document.getElementById("endSessionBtn");
-const resetBtn = document.getElementById("resetBtn");
 const syncCarrierBtn = document.getElementById("syncCarrierBtn");
 
 const actionTemplateSelect = document.getElementById("actionTemplateSelect");
@@ -722,9 +753,9 @@ const claimGateActive = document.getElementById("claimGateActive");
 const claimTimerDisplay = document.getElementById("claimTimerDisplay");
 const startClaimBtn = document.getElementById("startClaimBtn");
 
-const agentSignedOut = document.getElementById("agentSignedOut");
+const signInGate = document.getElementById("signInGate");
+const signInGateHint = document.getElementById("signInGateHint");
 const agentSignedIn = document.getElementById("agentSignedIn");
-const agentIdentityHint = document.getElementById("agentIdentityHint");
 const agentAvatar = document.getElementById("agentAvatar");
 const agentDisplayName = document.getElementById("agentDisplayName");
 const agentSignOutBtn = document.getElementById("agentSignOutBtn");
@@ -802,7 +833,7 @@ function decodeGoogleJwt(token) {
 
 function renderAgentIdentity() {
   if (currentAgent) {
-    agentSignedOut.hidden = true;
+    signInGate.hidden = true;
     agentSignedIn.hidden = false;
     agentDisplayName.textContent = currentAgent.name;
     if (currentAgent.picture) {
@@ -813,7 +844,7 @@ function renderAgentIdentity() {
     }
     startClaimBtn.disabled = false;
   } else {
-    agentSignedOut.hidden = false;
+    signInGate.hidden = false;
     agentSignedIn.hidden = true;
     startClaimBtn.disabled = true;
   }
@@ -860,7 +891,7 @@ function handleGoogleCredential(response) {
 
 function initGoogleSignIn() {
   if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID === "PASTE_YOUR_GOOGLE_CLIENT_ID_HERE.apps.googleusercontent.com") {
-    agentIdentityHint.textContent = "Google Sign-In isn't set up yet \u2014 add your Client ID in index.html (see README.md).";
+    signInGateHint.textContent = "Google Sign-In isn't set up yet \u2014 add your Client ID in index.html (see README.md).";
     return;
   }
   if (!window.google || !google.accounts || !google.accounts.id) {
@@ -876,10 +907,10 @@ function initGoogleSignIn() {
   if (ALLOWED_EMAIL_DOMAIN) config.hd = ALLOWED_EMAIL_DOMAIN;
 
   google.accounts.id.initialize(config);
-  google.accounts.id.renderButton(document.getElementById("googleSignInBtn"), {
+  google.accounts.id.renderButton(document.getElementById("googleSignInGateBtn"), {
     theme: "outline",
-    size: "medium",
-    width: 220
+    size: "large",
+    width: 280
   });
   google.accounts.id.prompt(); // offer One Tap for a smoother return visit
 }
@@ -916,6 +947,21 @@ function startHeartbeat() {
 function stopHeartbeat() {
   clearInterval(heartbeatInterval);
   heartbeatInterval = null;
+}
+
+// Pushes patient/carrier to the shared panel shortly after an edit, instead
+// of waiting for the next periodic heartbeat (up to HEARTBEAT_MS away).
+let presenceUpdateTimer = null;
+function schedulePresenceUpdate() {
+  if (!claimStarted) return;
+  clearTimeout(presenceUpdateTimer);
+  presenceUpdateTimer = setTimeout(() => {
+    postPresence("sessionHeartbeat", {
+      patientName: els.patientName.value.trim(),
+      carrier: els.carrierTop.value.trim(),
+      startTime: claimStartTime
+    });
+  }, 1200);
 }
 
 function setFormEnabled(enabled) {
@@ -1197,27 +1243,7 @@ async function copyTemplate() {
   }
 }
 
-// ---------- Reset ----------
-function resetForm() {
-  const ok = window.confirm("Reset the form? This clears all fields for the current entry.");
-  if (!ok) return;
-  FIELD_IDS.forEach((id) => (els[id].value = ""));
-  els.cmdDate.value = todayString();
-  endClaimSession();
-  saveNow();
-  updatePreview();
-  logHint.textContent = "";
-  showStatus("Form reset.", "info", 1800);
-}
-
 // ---------- End Session: log to sheet, then stop timer & lock form ----------
-function validate() {
-  const missing = [];
-  if (!els.patientName.value.trim()) missing.push("Patient Name");
-  if (!els.carrierTop.value.trim()) missing.push("Carrier");
-  return missing;
-}
-
 async function endSession() {
   if (!claimStarted) {
     showStatus("Click \u201cWork on a Claim\u201d first.", "err");
@@ -1226,12 +1252,6 @@ async function endSession() {
 
   if (!WEB_APP_URL || WEB_APP_URL === "PASTE_YOUR_DEPLOYED_WEB_APP_URL_HERE") {
     showStatus("Sheet isn't connected yet \u2014 deploy the Apps Script and paste the URL into WEB_APP_URL in index.html.", "err", 6000);
-    return;
-  }
-
-  const missing = validate();
-  if (missing.length) {
-    showStatus(`Fill in required field(s): ${missing.join(", ")}`, "err", 4000);
     return;
   }
 
@@ -1284,6 +1304,7 @@ FIELD_IDS.forEach((id) => {
   els[id].addEventListener("input", () => {
     updatePreview();
     scheduleSave();
+    if (id === "patientName" || id === "carrierTop") schedulePresenceUpdate();
   });
 });
 
@@ -1331,7 +1352,6 @@ attachPlaceholderTabbing(els.repRef);
 
 copyBtn.addEventListener("click", copyTemplate);
 endSessionBtn.addEventListener("click", endSession);
-resetBtn.addEventListener("click", resetForm);
 
 startClaimBtn.addEventListener("click", startClaimSession);
 
@@ -1350,7 +1370,7 @@ function renderAgents(sessions) {
 
   agentsList.innerHTML = sessions
     .map((s) => {
-      const isYou = s.sessionId && s.sessionId === mySessionId;
+      const isYou = !!(s.agentEmail && getAgentEmail() && s.agentEmail.toLowerCase() === getAgentEmail().toLowerCase());
       const agent = escapeHtml((s.agentName || "Unnamed agent") + (isYou ? " (you)" : ""));
       const patient = escapeHtml(s.patientName || "(just started)");
       const carrier = escapeHtml(s.carrier || "");
