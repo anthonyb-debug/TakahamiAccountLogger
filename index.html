@@ -189,6 +189,74 @@ html, body {
 }
 .agent-card .ac-meta { color: var(--ink-soft); margin-top: 2px; }
 
+/* ---------- Modal (used by View My Log) ---------- */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 25, 25, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 40;
+}
+.modal[hidden] { display: none; }
+.modal-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 18px;
+  width: 100%;
+  max-width: 420px;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.modal-header h2 { font-size: 16px; margin: 0; color: var(--ink); }
+.modal-actions { display: flex; justify-content: flex-end; margin-top: 4px; }
+
+.mylog-subtitle { font-size: 12px; color: var(--ink-soft); margin: 0 0 12px; line-height: 1.5; }
+.mylog-list { max-height: 60vh; }
+.mylog-entry {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mylog-entry-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 12.5px;
+  color: var(--ink);
+}
+.mylog-entry-when {
+  font-weight: 600;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.mylog-entry-body {
+  margin: 0;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--ink);
+  background: #f7f9f8;
+  border-radius: 6px;
+  padding: 10px;
+}
+.mylog-copy-btn { align-self: flex-end; padding: 6px 12px; font-size: 12px; }
+
 /* ---------- Topbar ---------- */
 .topbar {
   display: flex;
@@ -509,6 +577,9 @@ input:disabled, textarea:disabled, select:disabled {
         <h1>TPA Call Log</h1>
       </div>
     </div>
+    <button id="myLogBtn" class="icon-btn" title="View my logged claims" aria-label="View My Log">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path></svg>
+    </button>
   </header>
 
   <div id="statusBar" class="status-bar" hidden></div>
@@ -704,6 +775,23 @@ input:disabled, textarea:disabled, select:disabled {
 
 </div>
 
+<div id="myLogModal" class="modal" hidden>
+  <div class="modal-card mylog-modal-card">
+    <div class="modal-header">
+      <h2>My Log</h2>
+      <button type="button" id="closeMyLogBtn" class="icon-btn" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"></path><path d="M6 6l12 12"></path></svg>
+      </button>
+    </div>
+    <p class="mylog-subtitle">Claims you've logged, most recent first. Copy any entry to paste into your own notes.</p>
+    <div id="myLogStatus" class="log-status" hidden></div>
+    <div id="myLogList" class="logs-list mylog-list"></div>
+    <div class="modal-actions">
+      <button type="button" id="refreshMyLogBtn" class="btn btn-ghost">Refresh</button>
+    </div>
+  </div>
+</div>
+
 <script>
 
 // ---------- Hardcoded sheet connection ----------
@@ -775,6 +863,13 @@ const agentSignOutBtn = document.getElementById("agentSignOutBtn");
 const refreshAgentsBtn = document.getElementById("refreshAgentsBtn");
 const agentsList = document.getElementById("agentsList");
 const agentsStatus = document.getElementById("agentsStatus");
+
+const myLogBtn = document.getElementById("myLogBtn");
+const myLogModal = document.getElementById("myLogModal");
+const closeMyLogBtn = document.getElementById("closeMyLogBtn");
+const refreshMyLogBtn = document.getElementById("refreshMyLogBtn");
+const myLogList = document.getElementById("myLogList");
+const myLogStatus = document.getElementById("myLogStatus");
 
 // Everything that should stay locked until an agent clicks "Work on a Claim".
 const LOCKABLE_CONTROLS = [
@@ -1251,27 +1346,39 @@ function showStatus(message, kind = "info", timeout = 3200) {
 }
 
 // ---------- Copy ----------
+// Returns true/false so callers can give their own success/failure feedback.
+async function copyTextToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (err) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try {
+      document.execCommand("copy");
+      ok = true;
+    } catch (e2) {
+      ok = false;
+    }
+    document.body.removeChild(ta);
+    return ok;
+  }
+}
+
 async function copyTemplate() {
   if (!claimStarted) {
     showStatus("Click \u201cWork on a Claim\u201d first.", "err");
     return;
   }
   const text = buildTemplate();
-  try {
-    await navigator.clipboard.writeText(text);
+  const ok = await copyTextToClipboard(text);
+  if (ok) {
     showStatus("CMD template copied to clipboard.", "ok");
-  } catch (err) {
-    const ta = document.createElement("textarea");
-    ta.value = text;
-    document.body.appendChild(ta);
-    ta.select();
-    try {
-      document.execCommand("copy");
-      showStatus("CMD template copied to clipboard.", "ok");
-    } catch (e2) {
-      showStatus("Couldn't copy automatically \u2014 select and copy manually.", "err");
-    }
-    document.body.removeChild(ta);
+  } else {
+    showStatus("Couldn't copy automatically \u2014 select and copy manually.", "err");
   }
 }
 
@@ -1320,6 +1427,8 @@ async function endSession() {
     // Stop the timer, lock the form back up, and clear it for the next claim.
     FIELD_IDS.forEach((id) => (els[id].value = ""));
     els.cmdDate.value = todayString();
+    actionTemplateSelect.value = "";
+    lastAppliedTemplateKey = "";
     endClaimSession();
     saveNow();
     updatePreview();
@@ -1354,19 +1463,27 @@ syncCarrierBtn.addEventListener("click", () => {
   scheduleSave();
 });
 
+let lastAppliedTemplateKey = "";
+
 actionTemplateSelect.addEventListener("change", () => {
   const key = actionTemplateSelect.value;
-  actionTemplateSelect.value = ""; // reset picker right away; edited text lives in the textarea
-  if (!key) return;
+  if (!key) {
+    lastAppliedTemplateKey = "";
+    return;
+  }
 
   const template = ACTION_TEMPLATES[key];
   const current = els.action.value.trim();
   if (current && current !== template) {
     const ok = window.confirm("Replace the current Action text with this template?");
-    if (!ok) return;
+    if (!ok) {
+      actionTemplateSelect.value = lastAppliedTemplateKey; // revert to whatever's actually applied
+      return;
+    }
   }
 
   els.action.value = template;
+  lastAppliedTemplateKey = key;
 
   if (TPA_PROPOSAL_KEYS.includes(key) && !els.repRef.value.trim()) {
     els.repRef.value = TPA_PROPOSAL_REP_REF_HINT;
@@ -1478,6 +1595,115 @@ function startAgentsPolling() {
   clearInterval(agentsTickInterval);
   agentsTickInterval = setInterval(tickAgentTimers, 1000);
 }
+
+// ---------- View My Log (an agent's own past logged entries) ----------
+function buildLogEntryText(entry) {
+  const v = (key) => (entry[key] === undefined || entry[key] === null) ? "" : String(entry[key]);
+  return (
+`Patient Name: ${v("Patient Name")}      Facility: ${v("Facility")}     Carrier: ${v("Carrier")}
+DOB: ${v("DOB")}
+Member ID: ${v("Member ID")}
+TIN: ${v("TIN")}
+NPI: ${v("NPI")}
+DOS: ${v("DOS")}
+Number of claims: ${v("# of Claims")}
+*CMD Template*
+Date: ${v("CMD Date")}
+Carrier: ${v("CMD Carrier")}
+TPA: ${v("TPA")}
+Billed Amount: ${v("Billed Amount")}
+Original Allowed Amount: ${v("Original Allowed Amount")}
+Action: ${v("Action")}
+Rep & Ref#: ${v("Rep & Ref#")}`
+  );
+}
+
+function formatMyLogTimestamp(raw) {
+  if (!raw) return "";
+  const d = new Date(raw);
+  return isNaN(d.getTime()) ? String(raw) : d.toLocaleString();
+}
+
+function renderMyLog(entries) {
+  if (!entries || !entries.length) {
+    myLogList.innerHTML = '<p class="log-empty">You haven\u2019t logged any claims yet.</p>';
+    return;
+  }
+
+  myLogList.innerHTML = entries
+    .map((entry, i) => {
+      const name = escapeHtml(entry["Patient Name"] || "(no name)");
+      const when = escapeHtml(formatMyLogTimestamp(entry["Timestamp"]));
+      const text = buildLogEntryText(entry);
+      return `
+        <div class="mylog-entry">
+          <div class="mylog-entry-header"><span>${name}</span><span class="mylog-entry-when">${when}</span></div>
+          <pre class="mylog-entry-body">${escapeHtml(text)}</pre>
+          <button type="button" class="btn btn-amber mylog-copy-btn" data-index="${i}">Copy</button>
+        </div>
+      `;
+    })
+    .join("");
+
+  myLogList.querySelectorAll(".mylog-copy-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const idx = parseInt(btn.getAttribute("data-index"), 10);
+      const ok = await copyTextToClipboard(buildLogEntryText(entries[idx]));
+      const original = btn.textContent;
+      btn.textContent = ok ? "Copied!" : "Couldn't copy";
+      setTimeout(() => (btn.textContent = original), 1500);
+    });
+  });
+}
+
+async function fetchMyLog() {
+  myLogList.innerHTML = "";
+  myLogStatus.hidden = false;
+  myLogStatus.textContent = "Loading\u2026";
+  myLogStatus.className = "log-status info";
+
+  if (!WEB_APP_URL || WEB_APP_URL === "PASTE_YOUR_DEPLOYED_WEB_APP_URL_HERE") {
+    myLogStatus.textContent = "Sheet isn't connected yet.";
+    myLogStatus.className = "log-status err";
+    return;
+  }
+
+  const email = getAgentEmail();
+  if (!email) {
+    myLogStatus.textContent = "Sign in first to see your log.";
+    myLogStatus.className = "log-status err";
+    return;
+  }
+
+  try {
+    const res = await fetch(`${WEB_APP_URL}?action=myLog&email=${encodeURIComponent(email)}&limit=50`);
+    if (!res.ok) throw new Error("Bad response.");
+    const data = await res.json();
+    if (!data || data.status === "error") {
+      throw new Error((data && data.message) || "Sheet returned an error.");
+    }
+    renderMyLog(data.entries || []);
+    myLogStatus.hidden = true;
+  } catch (err) {
+    myLogStatus.textContent = "Couldn't load your log. Make sure the Apps Script is redeployed with the \u201cmyLog\u201d endpoint (see Apps_Script_Code.gs).";
+    myLogStatus.className = "log-status err";
+  }
+}
+
+function openMyLog() {
+  myLogModal.hidden = false;
+  fetchMyLog();
+}
+function closeMyLogModal() {
+  myLogModal.hidden = true;
+}
+
+myLogBtn.addEventListener("click", openMyLog);
+closeMyLogBtn.addEventListener("click", closeMyLogModal);
+refreshMyLogBtn.addEventListener("click", fetchMyLog);
+myLogModal.addEventListener("click", (e) => {
+  if (e.target === myLogModal) closeMyLogModal();
+});
 
 agentSignOutBtn.addEventListener("click", signOutAgent);
 
