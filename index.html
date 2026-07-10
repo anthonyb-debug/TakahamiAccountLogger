@@ -624,7 +624,7 @@ input:disabled, textarea:disabled, select:disabled {
       Copy CMD Template
     </button>
     <div class="btn-row">
-      <button id="logBtn" class="btn btn-teal">Log Entry</button>
+      <button id="endSessionBtn" class="btn btn-teal">End Session</button>
       <button id="resetBtn" class="btn btn-ghost">Reset Form</button>
     </div>
   </footer>
@@ -711,7 +711,7 @@ const statusBar = document.getElementById("statusBar");
 const logHint = document.getElementById("logHint");
 
 const copyBtn = document.getElementById("copyBtn");
-const logBtn = document.getElementById("logBtn");
+const endSessionBtn = document.getElementById("endSessionBtn");
 const resetBtn = document.getElementById("resetBtn");
 const syncCarrierBtn = document.getElementById("syncCarrierBtn");
 
@@ -738,7 +738,7 @@ const LOCKABLE_CONTROLS = [
   actionTemplateSelect,
   syncCarrierBtn,
   copyBtn,
-  logBtn
+  endSessionBtn
 ];
 
 let claimStarted = false;
@@ -1210,7 +1210,7 @@ function resetForm() {
   showStatus("Form reset.", "info", 1800);
 }
 
-// ---------- Log to Google Sheet ----------
+// ---------- End Session: log to sheet, then stop timer & lock form ----------
 function validate() {
   const missing = [];
   if (!els.patientName.value.trim()) missing.push("Patient Name");
@@ -1218,7 +1218,7 @@ function validate() {
   return missing;
 }
 
-async function logEntry() {
+async function endSession() {
   if (!claimStarted) {
     showStatus("Click \u201cWork on a Claim\u201d first.", "err");
     return;
@@ -1241,8 +1241,10 @@ async function logEntry() {
   payload.loggedByName = getAgentName();
   payload.loggedByEmail = getAgentEmail();
 
-  logBtn.disabled = true;
-  logBtn.textContent = "Logging\u2026";
+  const patientNameForHint = els.patientName.value.trim();
+
+  endSessionBtn.disabled = true;
+  endSessionBtn.textContent = "Logging\u2026";
   showStatus("Sending entry to your log sheet\u2026", "info", 0);
 
   try {
@@ -1260,13 +1262,20 @@ async function logEntry() {
     // With no-cors the response is opaque, so we can't confirm success from
     // the server's reply. If fetch didn't throw, the request reached Google;
     // spot-check the sheet occasionally to confirm rows are landing.
-    showStatus("Logged to sheet \u2713", "ok");
-    logHint.textContent = `Last logged: ${els.patientName.value.trim()} at ${new Date().toLocaleTimeString()}`;
+    showStatus("Logged to sheet \u2713 \u2014 session ended.", "ok");
+    logHint.textContent = `Last logged: ${patientNameForHint} at ${new Date().toLocaleTimeString()}`;
+
+    // Stop the timer, lock the form back up, and clear it for the next claim.
+    FIELD_IDS.forEach((id) => (els[id].value = ""));
+    els.cmdDate.value = todayString();
+    endClaimSession();
+    saveNow();
+    updatePreview();
   } catch (err) {
-    showStatus("Couldn't reach the sheet. Check your connection or Web App URL in Settings.", "err", 5000);
+    showStatus("Couldn't reach the sheet. Check your connection or Web App URL. Your session is still active \u2014 try End Session again.", "err", 6000);
   } finally {
-    logBtn.disabled = false;
-    logBtn.textContent = "Log Entry";
+    endSessionBtn.disabled = !claimStarted;
+    endSessionBtn.textContent = "End Session";
   }
 }
 
@@ -1321,7 +1330,7 @@ attachPlaceholderTabbing(els.action);
 attachPlaceholderTabbing(els.repRef);
 
 copyBtn.addEventListener("click", copyTemplate);
-logBtn.addEventListener("click", logEntry);
+endSessionBtn.addEventListener("click", endSession);
 resetBtn.addEventListener("click", resetForm);
 
 startClaimBtn.addEventListener("click", startClaimSession);
