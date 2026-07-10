@@ -371,6 +371,37 @@ input:focus, textarea:focus, select:focus {
   box-shadow: 0 0 0 3px var(--teal-tint);
 }
 
+.field-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.field-input-wrap-textarea { align-items: flex-start; }
+.field-input-wrap input,
+.field-input-wrap textarea {
+  flex: 1;
+  min-width: 0;
+}
+.field-clear-btn {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  background: #e2e7e5;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.field-clear-btn:hover { background: #d3dad8; color: var(--ink); }
+.field-clear-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.field-input-wrap-textarea .field-clear-btn { margin-top: 8px; }
+
 select#actionTemplateSelect {
   color: var(--ink-soft);
   cursor: pointer;
@@ -839,6 +870,53 @@ const FIELD_IDS = [
 const els = {};
 FIELD_IDS.forEach((id) => (els[id] = document.getElementById(id)));
 
+// Wraps each field's input/textarea with a small "x" button that clears it.
+// Done in JS (rather than hand-editing every field's markup) so it applies
+// uniformly and stays in sync with FIELD_IDS.
+const CLEAR_BUTTONS = {};
+
+function addClearButtons() {
+  FIELD_IDS.forEach((id) => {
+    const el = els[id];
+    if (!el) return;
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "field-input-wrap" + (el.tagName === "TEXTAREA" ? " field-input-wrap-textarea" : "");
+    el.parentNode.insertBefore(wrapper, el);
+    wrapper.appendChild(el);
+
+    const clearBtn = document.createElement("button");
+    clearBtn.type = "button";
+    clearBtn.className = "field-clear-btn";
+    clearBtn.setAttribute("aria-label", "Clear this field");
+    clearBtn.textContent = "\u00D7";
+    clearBtn.hidden = true;
+    wrapper.appendChild(clearBtn);
+    CLEAR_BUTTONS[id] = clearBtn;
+
+    clearBtn.addEventListener("click", () => {
+      el.value = "";
+      clearBtn.hidden = true;
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      el.focus();
+    });
+
+    el.addEventListener("input", () => {
+      clearBtn.hidden = !el.value;
+    });
+  });
+}
+addClearButtons();
+
+// Call this after any programmatic (non-typed) value change -- draft
+// restore, template auto-fill, "use above", form clear on End Session --
+// since those don't fire an "input" event on their own.
+function syncAllClearButtons() {
+  FIELD_IDS.forEach((id) => {
+    if (CLEAR_BUTTONS[id]) CLEAR_BUTTONS[id].hidden = !els[id].value;
+  });
+}
+
 const cmdPreview = document.getElementById("cmdPreview");
 const statusBar = document.getElementById("statusBar");
 const logHint = document.getElementById("logHint");
@@ -1095,6 +1173,9 @@ function setFormEnabled(enabled) {
   LOCKABLE_CONTROLS.forEach((el) => {
     if (el) el.disabled = !enabled;
   });
+  Object.values(CLEAR_BUTTONS).forEach((btn) => {
+    btn.disabled = !enabled;
+  });
 }
 
 function formatElapsed(ms) {
@@ -1190,6 +1271,7 @@ function init() {
     });
   }
   if (!els.cmdDate.value) els.cmdDate.value = todayString();
+  syncAllClearButtons();
 
   if (draft && draft.claimStarted && draft.claimStartTime) {
     claimStarted = true;
@@ -1375,11 +1457,20 @@ async function copyTemplate() {
   }
   const text = buildTemplate();
   const ok = await copyTextToClipboard(text);
+
+  const original = copyBtn.innerHTML;
   if (ok) {
     showStatus("CMD template copied to clipboard.", "ok");
+    copyBtn.innerHTML = "\u2713 Copied to clipboard!";
   } else {
     showStatus("Couldn't copy automatically \u2014 select and copy manually.", "err");
+    copyBtn.innerHTML = "Couldn't copy \u2014 try again";
   }
+  copyBtn.disabled = true;
+  setTimeout(() => {
+    copyBtn.innerHTML = original;
+    copyBtn.disabled = !claimStarted;
+  }, 1600);
 }
 
 // ---------- End Session: log to sheet, then stop timer & lock form ----------
@@ -1429,6 +1520,7 @@ async function endSession() {
     els.cmdDate.value = todayString();
     actionTemplateSelect.value = "";
     lastAppliedTemplateKey = "";
+    syncAllClearButtons();
     endClaimSession();
     saveNow();
     updatePreview();
@@ -1459,6 +1551,7 @@ FIELD_IDS.forEach((id) => {
 
 syncCarrierBtn.addEventListener("click", () => {
   els.cmdCarrier.value = els.carrierTop.value;
+  if (CLEAR_BUTTONS.cmdCarrier) CLEAR_BUTTONS.cmdCarrier.hidden = !els.cmdCarrier.value;
   updatePreview();
   scheduleSave();
 });
@@ -1489,6 +1582,7 @@ actionTemplateSelect.addEventListener("change", () => {
     els.repRef.value = TPA_PROPOSAL_REP_REF_HINT;
   }
 
+  syncAllClearButtons();
   updatePreview();
   scheduleSave();
 
@@ -1607,7 +1701,7 @@ TIN: ${v("TIN")}
 NPI: ${v("NPI")}
 DOS: ${v("DOS")}
 Number of claims: ${v("# of Claims")}
-*CMD Template*
+
 Date: ${v("CMD Date")}
 Carrier: ${v("CMD Carrier")}
 TPA: ${v("TPA")}
