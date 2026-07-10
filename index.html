@@ -235,7 +235,15 @@ html, body {
   margin-bottom: 3px;
 }
 .modal-header h2 { font-size: 15px; margin: 0; color: var(--ink); }
-.modal-actions { display: flex; justify-content: flex-end; margin-top: 3px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 3px; }
+
+.confirm-modal-card { max-width: 340px; }
+.confirm-modal-message {
+  font-size: 13px;
+  color: var(--ink);
+  line-height: 1.5;
+  margin: 0 0 14px;
+}
 
 .mylog-subtitle { font-size: 11.5px; color: var(--ink-soft); margin: 0 0 8px; line-height: 1.45; }
 .mylog-list { max-height: 70vh; }
@@ -910,6 +918,16 @@ input:disabled, textarea:disabled, select:disabled {
   </div>
 </div>
 
+<div id="confirmModal" class="modal" hidden>
+  <div class="modal-card confirm-modal-card">
+    <p id="confirmModalMessage" class="confirm-modal-message"></p>
+    <div class="modal-actions">
+      <button type="button" id="confirmModalNo" class="btn btn-ghost">No</button>
+      <button type="button" id="confirmModalYes" class="btn btn-teal">Yes</button>
+    </div>
+  </div>
+</div>
+
 <script>
 
 // ---------- Hardcoded sheet connection ----------
@@ -1106,6 +1124,42 @@ const closeMyLogBtn = document.getElementById("closeMyLogBtn");
 const refreshMyLogBtn = document.getElementById("refreshMyLogBtn");
 const myLogList = document.getElementById("myLogList");
 const myLogStatus = document.getElementById("myLogStatus");
+
+const confirmModal = document.getElementById("confirmModal");
+const confirmModalMessage = document.getElementById("confirmModalMessage");
+const confirmModalYes = document.getElementById("confirmModalYes");
+const confirmModalNo = document.getElementById("confirmModalNo");
+
+// Shows a Yes/No confirm dialog styled like the rest of the app (native
+// window.confirm() can't be relabeled away from OK/Cancel). Resolves true
+// for Yes, false for No or dismissing it any other way.
+function showConfirm(message) {
+  return new Promise((resolve) => {
+    confirmModalMessage.textContent = message;
+    confirmModal.hidden = false;
+
+    function cleanup(result) {
+      confirmModal.hidden = true;
+      confirmModalYes.removeEventListener("click", onYes);
+      confirmModalNo.removeEventListener("click", onNo);
+      confirmModal.removeEventListener("click", onOverlay);
+      resolve(result);
+    }
+    function onYes() {
+      cleanup(true);
+    }
+    function onNo() {
+      cleanup(false);
+    }
+    function onOverlay(e) {
+      if (e.target === confirmModal) cleanup(false);
+    }
+
+    confirmModalYes.addEventListener("click", onYes);
+    confirmModalNo.addEventListener("click", onNo);
+    confirmModal.addEventListener("click", onOverlay);
+  });
+}
 
 // Everything that should stay locked until an agent clicks "Work on a Claim".
 const LOCKABLE_CONTROLS = [
@@ -1666,7 +1720,7 @@ async function endSession() {
   }
 
   if (!els.patientName.value.trim()) {
-    const ok = window.confirm("Patient Name is empty. Log this claim anyway?");
+    const ok = await showConfirm("Patient Name is empty. Log this claim anyway?");
     if (!ok) return;
   }
 
@@ -1744,7 +1798,7 @@ syncCarrierBtn.addEventListener("click", () => {
 
 let lastAppliedTemplateKey = "";
 
-actionTemplateSelect.addEventListener("change", () => {
+actionTemplateSelect.addEventListener("change", async () => {
   const key = actionTemplateSelect.value;
   if (!key) {
     lastAppliedTemplateKey = "";
@@ -1754,7 +1808,7 @@ actionTemplateSelect.addEventListener("change", () => {
   const template = ACTION_TEMPLATES[key];
   const current = els.action.value.trim();
   if (current && current !== template) {
-    const ok = window.confirm("Replace the current Action text with this template?");
+    const ok = await showConfirm("Replace the current Action text with this template?");
     if (!ok) {
       actionTemplateSelect.value = lastAppliedTemplateKey; // revert to whatever's actually applied
       return;
