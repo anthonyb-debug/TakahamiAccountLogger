@@ -211,6 +211,11 @@ html, body {
   overflow-y: auto;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 }
+.mylog-modal-card {
+  max-width: 560px;
+  max-height: 90vh;
+  padding: 18px;
+}
 .modal-header {
   display: flex;
   align-items: center;
@@ -221,7 +226,7 @@ html, body {
 .modal-actions { display: flex; justify-content: flex-end; margin-top: 3px; }
 
 .mylog-subtitle { font-size: 11.5px; color: var(--ink-soft); margin: 0 0 8px; line-height: 1.45; }
-.mylog-list { max-height: 60vh; }
+.mylog-list { max-height: 70vh; }
 .mylog-entry {
   border: 1px solid var(--border);
   border-radius: 7px;
@@ -413,6 +418,47 @@ input:focus, textarea:focus, select:focus {
   top: 8px;
   transform: none;
 }
+
+/* Date-picker helper (DOB, CMD Date) -- text field stays free-text/paste
+   friendly; this just adds a calendar icon that opens a native picker and
+   writes a formatted date into the field when used. */
+.field-input-wrap-has-date input {
+  padding-right: 50px; /* room for the calendar icon + the clear button */
+}
+.date-field-wrap {
+  position: absolute;
+  right: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+}
+.date-icon {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-soft);
+  pointer-events: none;
+}
+.date-picker-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+.date-picker-overlay:disabled { cursor: not-allowed; }
+.date-picker-overlay:disabled ~ .date-icon {
+  opacity: 0.4;
+}
+
 /* Avoid the native spinner arrows colliding with the clear button on the
    "# of Claims" number input. */
 input[type="number"]::-webkit-outer-spin-button,
@@ -624,7 +670,7 @@ input:disabled, textarea:disabled, select:disabled {
         <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="6" y="3" width="12" height="18" rx="2"></rect><path d="M9 3h6v2a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V3z" fill="#9c6b23" stroke="none"></path><path d="M9 13l2 2 4-4" stroke="#1e3a5f"></path></svg>
       </div>
       <div class="brand-text">
-        <p class="eyebrow">Behavioral &middot; Underpaid</p>
+        <p class="eyebrow">TAKAHAMI BILLING</p>
         <h1>Account/Patient Log</h1>
       </div>
     </div>
@@ -928,6 +974,55 @@ function addClearButtons() {
 }
 addClearButtons();
 
+// Adds a small calendar icon (a real, transparent <input type="date"> laid
+// over it, so clicking it reliably opens each browser's native picker) next
+// to DOB and CMD Date. The visible field stays plain text underneath, so
+// typing or pasting anything (including non-date text) still works fine --
+// picking a date is just a shortcut that fills it in as MM/DD/YYYY.
+const DATE_PICKERS = {};
+const DATE_PICKER_FIELDS = ["dob", "cmdDate"];
+
+function addDatePickerButton(id) {
+  const el = els[id];
+  if (!el) return;
+  const wrap = el.parentNode; // the .field-input-wrap created by addClearButtons()
+  if (!wrap) return;
+
+  wrap.classList.add("field-input-wrap-has-date");
+
+  const dateBox = document.createElement("span");
+  dateBox.className = "date-field-wrap";
+
+  const icon = document.createElement("span");
+  icon.className = "date-icon";
+  icon.setAttribute("aria-hidden", "true");
+  icon.innerHTML =
+    '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M16 3v4"></path><path d="M8 3v4"></path><path d="M3 10h18"></path></svg>';
+
+  const picker = document.createElement("input");
+  picker.type = "date";
+  picker.className = "date-picker-overlay";
+  picker.tabIndex = -1;
+  picker.setAttribute("aria-label", "Pick a date");
+
+  dateBox.appendChild(picker);
+  dateBox.appendChild(icon);
+
+  // Sits just left of the clear button, which is always the wrapper's last child.
+  wrap.insertBefore(dateBox, wrap.lastElementChild);
+  DATE_PICKERS[id] = picker;
+
+  picker.addEventListener("change", () => {
+    if (!picker.value) return;
+    const [y, m, d] = picker.value.split("-");
+    el.value = `${m}/${d}/${y}`;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    picker.value = "";
+  });
+}
+
+DATE_PICKER_FIELDS.forEach(addDatePickerButton);
+
 // Call this after any programmatic (non-typed) value change -- draft
 // restore, template auto-fill, "use above", form clear on End Session --
 // since those don't fire an "input" event on their own.
@@ -1195,6 +1290,9 @@ function setFormEnabled(enabled) {
   });
   Object.values(CLEAR_BUTTONS).forEach((btn) => {
     btn.disabled = !enabled;
+  });
+  Object.values(DATE_PICKERS).forEach((picker) => {
+    picker.disabled = !enabled;
   });
 }
 
