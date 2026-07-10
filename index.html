@@ -309,7 +309,7 @@ input:focus, textarea:focus {
         <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="6" y="3" width="12" height="18" rx="2"></rect><path d="M9 3h6v2a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V3z" fill="#c97a2b" stroke="none"></path><path d="M9 13l2 2 4-4" stroke="#0f5257"></path></svg>
       </div>
       <div class="brand-text">
-        <p class="eyebrow">Behavioral · Underpaid</p>
+        <p class="eyebrow">Behavioral &middot; Underpaid</p>
         <h1>TPA Call Log</h1>
       </div>
     </div>
@@ -381,7 +381,7 @@ input:focus, textarea:focus {
     <section class="tab-section tab-amber">
       <div class="tab-strip" aria-hidden="true"></div>
       <div class="section-inner">
-        <p class="eyebrow">CMD Template · TPA Call</p>
+        <p class="eyebrow">CMD Template &middot; TPA Call</p>
 
         <div class="field-row">
           <label class="field">
@@ -453,7 +453,7 @@ input:focus, textarea:focus {
 <div id="settingsModal" class="modal" hidden>
   <div class="modal-card">
     <h2>Action presets</h2>
-    <p>This page logs to the <strong>Takahami Medical Billing — Account Entries</strong> sheet automatically. Nothing to connect here — just edit the Action dropdown presets below, one per line.</p>
+    <p>This page logs to the <strong>Takahami Medical Billing &mdash; Account Entries</strong> sheet automatically. Nothing to connect here &mdash; just edit the Action dropdown presets below, one per line.</p>
     <textarea id="actionPresetsInput" rows="6" placeholder="Reprocessing requested&#10;Appeal submitted&#10;Escalated to supervisor"></textarea>
     <div class="modal-actions">
       <button id="closeSettingsBtn" class="btn btn-ghost">Cancel</button>
@@ -464,12 +464,12 @@ input:focus, textarea:focus {
 
 <script>
 // ---------- Hardcoded sheet connection ----------
-// Logs to: "Takahami Medical Billing — Account Entries"
+// Logs to: "Takahami Medical Billing -- Account Entries"
 // (https://docs.google.com/spreadsheets/d/13_GgCqU1Ey8PUj26AlHQWlrHlChw1uptL8dyO3Fh0bc)
 //
 // After deploying Apps_Script_Code.gs as a Web App (see README.md Part 1),
 // paste the resulting /exec URL below. Every agent using this page will log
-// to the same sheet — no per-agent setup needed.
+// to the same sheet -- no per-agent setup needed.
 const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbx2UWHVh3w1EvZFdpIHv9F7PNJFGoeCEU__30ZmjskgbuUC8CipmN0Ny9w476wC6lgpUQ/exec";
 
 // ---------- Constants ----------
@@ -512,7 +512,7 @@ const actionPresetsList = document.getElementById("actionPresets");
 
 let settings = { presets: DEFAULT_PRESETS };
 
-// ---------- Storage helpers (localStorage — this is a plain website) ----------
+// ---------- Storage helpers (localStorage -- this is a plain website) ----------
 function storageGet(key) {
   try {
     const raw = localStorage.getItem(key);
@@ -525,7 +525,7 @@ function storageSet(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (e) {
-    // storage unavailable (e.g. private browsing) — fail silently
+    // storage unavailable (e.g. private browsing) -- fail silently
   }
 }
 
