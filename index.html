@@ -114,6 +114,7 @@ html, body {
   padding: 20px;
   z-index: 50;
 }
+.signin-gate[hidden] { display: none; }
 .signin-gate-card {
   background: #fff;
   border-radius: 16px;
@@ -136,11 +137,18 @@ html, body {
 .signin-gate-card h1 { font-size: 18px; margin: 0 0 8px; color: var(--ink); }
 .signin-gate-card p { font-size: 13px; color: var(--ink-soft); margin: 0 0 18px; line-height: 1.5; }
 .signin-gate-btn { display: flex; justify-content: center; margin-bottom: 8px; min-height: 40px; }
+#signInGateHint {
+  display: block;
+  font-size: 11.5px;
+  line-height: 1.5;
+  margin-top: 4px;
+}
 .agent-signed-in {
   display: flex;
   align-items: center;
   gap: 8px;
 }
+.agent-signed-in[hidden] { display: none; }
 .agent-avatar {
   width: 28px;
   height: 28px;
@@ -324,6 +332,10 @@ textarea#action {
   text-transform: none;
   opacity: 0.75;
 }
+.mini-hint.err {
+  color: var(--danger);
+  opacity: 1;
+}
 
 /* ---------- Claim gate / timer ---------- */
 .claim-gate {
@@ -336,6 +348,7 @@ textarea#action {
   background: var(--teal-tint);
   margin-bottom: 14px;
 }
+.claim-gate[hidden] { display: none; }
 .claim-gate-text { display: flex; flex-direction: column; gap: 2px; }
 .claim-gate-text strong { font-size: 12.5px; color: var(--teal-dark); }
 .claim-gate-text span { font-size: 11px; color: var(--ink-soft); }
@@ -869,14 +882,25 @@ function signOutAgent() {
   renderAgentIdentity();
 }
 
+function showGateError(message) {
+  signInGateHint.textContent = message;
+  signInGateHint.classList.add("err");
+}
+
+function clearGateError() {
+  signInGateHint.textContent = "";
+  signInGateHint.classList.remove("err");
+}
+
 function handleGoogleCredential(response) {
+  clearGateError();
   const payload = decodeGoogleJwt(response.credential);
   if (!payload) {
-    showStatus("Sign-in failed \u2014 couldn't read the response from Google.", "err");
+    showGateError("Sign-in failed \u2014 couldn't read the response from Google. Please try again.");
     return;
   }
   if (ALLOWED_EMAIL_DOMAIN && payload.hd !== ALLOWED_EMAIL_DOMAIN) {
-    showStatus(`Please sign in with your @${ALLOWED_EMAIL_DOMAIN} account.`, "err", 5000);
+    showGateError(`Please sign in with your @${ALLOWED_EMAIL_DOMAIN} account.`);
     if (window.google && google.accounts && google.accounts.id) {
       google.accounts.id.disableAutoSelect();
     }
@@ -891,7 +915,7 @@ function handleGoogleCredential(response) {
 
 function initGoogleSignIn() {
   if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID === "PASTE_YOUR_GOOGLE_CLIENT_ID_HERE.apps.googleusercontent.com") {
-    signInGateHint.textContent = "Google Sign-In isn't set up yet \u2014 add your Client ID in index.html (see README.md).";
+    showGateError("Google Sign-In isn't set up yet \u2014 add your Client ID in index.html (see README.md).");
     return;
   }
   if (!window.google || !google.accounts || !google.accounts.id) {
@@ -899,20 +923,28 @@ function initGoogleSignIn() {
     return;
   }
 
-  const config = {
-    client_id: GOOGLE_CLIENT_ID,
-    callback: handleGoogleCredential,
-    auto_select: true
-  };
-  if (ALLOWED_EMAIL_DOMAIN) config.hd = ALLOWED_EMAIL_DOMAIN;
+  try {
+    const config = {
+      client_id: GOOGLE_CLIENT_ID,
+      callback: handleGoogleCredential,
+      auto_select: true
+    };
+    if (ALLOWED_EMAIL_DOMAIN) config.hd = ALLOWED_EMAIL_DOMAIN;
 
-  google.accounts.id.initialize(config);
-  google.accounts.id.renderButton(document.getElementById("googleSignInGateBtn"), {
-    theme: "outline",
-    size: "large",
-    width: 280
-  });
-  google.accounts.id.prompt(); // offer One Tap for a smoother return visit
+    google.accounts.id.initialize(config);
+    google.accounts.id.renderButton(document.getElementById("googleSignInGateBtn"), {
+      theme: "outline",
+      size: "large",
+      width: 280
+    });
+    google.accounts.id.prompt(); // offer One Tap for a smoother return visit
+  } catch (err) {
+    console.error("Google Sign-In failed to initialize:", err);
+    showGateError(
+      "Google Sign-In couldn't start. This usually means this page's URL isn't added under " +
+      "\u201cAuthorized JavaScript origins\u201d for this Client ID in Google Cloud Console."
+    );
+  }
 }
 
 async function postPresence(type, extra) {
