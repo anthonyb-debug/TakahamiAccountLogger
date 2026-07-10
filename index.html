@@ -453,7 +453,7 @@ input:focus, textarea:focus {
 <div id="settingsModal" class="modal" hidden>
   <div class="modal-card">
     <h2>Action presets</h2>
-    <p>This page logs to the <strong>Takahami Medical Billing \u2014 Account Entries</strong> sheet automatically. Nothing to connect here \u2014 just edit the Action dropdown presets below, one per line.</p>
+    <p>This page logs to the <strong>Takahami Medical Billing — Account Entries</strong> sheet automatically. Nothing to connect here — just edit the Action dropdown presets below, one per line.</p>
     <textarea id="actionPresetsInput" rows="6" placeholder="Reprocessing requested&#10;Appeal submitted&#10;Escalated to supervisor"></textarea>
     <div class="modal-actions">
       <button id="closeSettingsBtn" class="btn btn-ghost">Cancel</button>
@@ -667,7 +667,7 @@ function validate() {
 }
 
 async function logEntry() {
-  if (!WEB_APP_URL || WEB_APP_URL === "https://script.google.com/macros/s/AKfycbx2UWHVh3w1EvZFdpIHv9F7PNJFGoeCEU__30ZmjskgbuUC8CipmN0Ny9w476wC6lgpUQ/exec") {
+  if (!WEB_APP_URL || WEB_APP_URL === "PASTE_YOUR_DEPLOYED_WEB_APP_URL_HERE") {
     showStatus("Sheet isn't connected yet \u2014 deploy the Apps Script and paste the URL into WEB_APP_URL in index.html.", "err", 6000);
     return;
   }
