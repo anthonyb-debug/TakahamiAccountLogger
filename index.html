@@ -1446,7 +1446,23 @@ async function fetchActiveAgents() {
     if (!data || data.status === "error") {
       throw new Error((data && data.message) || "Sheet returned an error.");
     }
-    renderAgents(data.sessions || []);
+
+    let sessions = data.sessions || [];
+
+    // Self-heal: if I show up as "working" here but my own browser knows I
+    // haven't started a claim, that's a stale row (e.g. a tab closed without
+    // a clean End Session, or signed in fresh with an old row still lingering
+    // from a previous device/session). Clean it up and don't show it to myself.
+    const myEmail = getAgentEmail().toLowerCase();
+    if (!claimStarted && myEmail) {
+      const ghost = sessions.find((s) => (s.agentEmail || "").toLowerCase() === myEmail);
+      if (ghost) {
+        postPresence("sessionEnd", {});
+        sessions = sessions.filter((s) => s !== ghost);
+      }
+    }
+
+    renderAgents(sessions);
     agentsStatus.hidden = true;
   } catch (err) {
     agentsStatus.hidden = false;
