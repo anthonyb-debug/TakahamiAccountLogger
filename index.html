@@ -202,6 +202,23 @@ html, body {
 .agent-card .ac-meta { color: var(--ink-soft); margin-top: 1px; }
 
 .completed-header { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.completed-agent-filter {
+  width: auto;
+  padding: 3px 6px;
+  font-size: 10.5px;
+  border-radius: 5px;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.pin-input {
+  width: 100%;
+  text-align: center;
+  font-size: 22px;
+  letter-spacing: 10px;
+  font-weight: 700;
+  padding: 10px 8px;
+  margin-bottom: 8px;
+}
 .completed-list { max-height: 40vh; }
 .completed-entry {
   display: flex;
@@ -940,6 +957,12 @@ input:disabled, textarea:disabled, select:disabled {
 
     <div class="agents-panel-header completed-header">
       <h2>Completed Today</h2>
+      <span class="agents-header-actions">
+        <select id="completedAgentFilter" class="completed-agent-filter">
+          <option value="">All agents</option>
+        </select>
+        <button type="button" id="clearCompletedBtn" class="mini-link">clear</button>
+      </span>
     </div>
     <div id="completedStatus" class="log-status" hidden></div>
     <div id="completedList" class="logs-list completed-list"></div>
@@ -971,6 +994,18 @@ input:disabled, textarea:disabled, select:disabled {
     <div class="modal-actions">
       <button type="button" id="confirmModalNo" class="btn btn-ghost">No</button>
       <button type="button" id="confirmModalYes" class="btn btn-teal">Yes</button>
+    </div>
+  </div>
+</div>
+
+<div id="clearCompletedModal" class="modal" hidden>
+  <div class="modal-card confirm-modal-card">
+    <p class="confirm-modal-message">Enter the manager PIN to clear today's Completed list for everyone. The permanent record stays in the sheet either way.</p>
+    <input type="password" inputmode="numeric" maxlength="4" id="clearCompletedPinInput" placeholder="&#8226;&#8226;&#8226;&#8226;" class="pin-input" autocomplete="off" />
+    <p class="mini-hint err" id="clearCompletedPinError" hidden>Incorrect PIN. Try again.</p>
+    <div class="modal-actions">
+      <button type="button" id="clearCompletedCancelBtn" class="btn btn-ghost">Cancel</button>
+      <button type="button" id="clearCompletedConfirmBtn" class="btn btn-teal">Clear</button>
     </div>
   </div>
 </div>
@@ -1166,6 +1201,13 @@ const agentsStatus = document.getElementById("agentsStatus");
 const agentsLastSync = document.getElementById("agentsLastSync");
 const completedStatus = document.getElementById("completedStatus");
 const completedList = document.getElementById("completedList");
+const completedAgentFilter = document.getElementById("completedAgentFilter");
+const clearCompletedBtn = document.getElementById("clearCompletedBtn");
+const clearCompletedModal = document.getElementById("clearCompletedModal");
+const clearCompletedPinInput = document.getElementById("clearCompletedPinInput");
+const clearCompletedPinError = document.getElementById("clearCompletedPinError");
+const clearCompletedCancelBtn = document.getElementById("clearCompletedCancelBtn");
+const clearCompletedConfirmBtn = document.getElementById("clearCompletedConfirmBtn");
 
 const myLogBtn = document.getElementById("myLogBtn");
 const myLogModal = document.getElementById("myLogModal");
@@ -1238,6 +1280,12 @@ const GOOGLE_CLIENT_ID = "519974257344-5u0bjm2sdctrnlq6b1oflsvesgn291fc.apps.goo
 // client-side check only, not real access control -- it just keeps honest
 // users on the right account, the same way the rest of this page works.
 const ALLOWED_EMAIL_DOMAIN = "";
+
+// PIN required to clear the "Completed Today" list for everyone. Change
+// this to your own 4-digit code. Same caveat as the rest of this app: this
+// is a client-side check, not hardened security -- it's meant to keep it
+// an intentional manager action, not to stop a determined person.
+const MANAGER_CLEAR_PIN = "1234";
 
 const AGENT_IDENTITY_KEY = "tpaCallLog.agentIdentityV1";
 let currentAgent = null; // { name, email, picture } once signed in
@@ -1989,9 +2037,13 @@ async function fetchActiveAgents() {
   }
 }
 
+let lastCompletedEntries = [];
+
 function renderCompletedToday(entries) {
   if (!entries || !entries.length) {
-    completedList.innerHTML = '<p class="log-empty">Nothing logged yet today.</p>';
+    completedList.innerHTML = completedAgentFilter.value
+      ? '<p class="log-empty">No completed claims for this agent today.</p>'
+      : '<p class="log-empty">Nothing logged yet today.</p>';
     return;
   }
 
@@ -2015,17 +2067,42 @@ function renderCompletedToday(entries) {
     .join("");
 }
 
+// Rebuilds the filter's <option> list from whoever shows up in today's
+// entries, keeping the current selection if that agent is still present.
+function populateCompletedAgentFilter(entries) {
+  const current = completedAgentFilter.value;
+  const names = Array.from(new Set(entries.map((e) => e.agentName).filter(Boolean))).sort((a, b) =>
+    a.localeCompare(b)
+  );
+
+  completedAgentFilter.innerHTML =
+    '<option value="">All agents</option>' +
+    names.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
+
+  if (names.includes(current)) completedAgentFilter.value = current;
+}
+
+function applyCompletedFilter() {
+  const selected = completedAgentFilter.value;
+  const filtered = selected
+    ? lastCompletedEntries.filter((e) => e.agentName === selected)
+    : lastCompletedEntries;
+  renderCompletedToday(filtered);
+}
+
 async function fetchCompletedToday() {
   if (!WEB_APP_URL || WEB_APP_URL === "PASTE_YOUR_DEPLOYED_WEB_APP_URL_HERE") return;
 
   try {
-    const res = await fetch(`${WEB_APP_URL}?action=completedToday&limit=25`);
+    const res = await fetch(`${WEB_APP_URL}?action=completedToday&limit=100`);
     if (!res.ok) throw new Error("Bad response.");
     const data = await res.json();
     if (!data || data.status === "error") {
       throw new Error((data && data.message) || "Sheet returned an error.");
     }
-    renderCompletedToday(data.entries || []);
+    lastCompletedEntries = data.entries || [];
+    populateCompletedAgentFilter(lastCompletedEntries);
+    applyCompletedFilter();
     completedStatus.hidden = true;
   } catch (err) {
     completedStatus.hidden = false;
@@ -2160,6 +2237,71 @@ agentSignOutBtn.addEventListener("click", signOutAgent);
 refreshAgentsBtn.addEventListener("click", () => {
   fetchActiveAgents();
   fetchCompletedToday();
+});
+
+completedAgentFilter.addEventListener("change", applyCompletedFilter);
+
+clearCompletedPinInput.addEventListener("input", () => {
+  clearCompletedPinInput.value = clearCompletedPinInput.value.replace(/[^0-9]/g, "").slice(0, 4);
+});
+
+function openClearCompletedModal() {
+  clearCompletedPinInput.value = "";
+  clearCompletedPinError.hidden = true;
+  clearCompletedModal.hidden = false;
+  clearCompletedPinInput.focus();
+}
+
+function closeClearCompletedModal() {
+  clearCompletedModal.hidden = true;
+}
+
+async function handleClearCompletedConfirm() {
+  const pin = clearCompletedPinInput.value.trim();
+  if (pin !== MANAGER_CLEAR_PIN) {
+    clearCompletedPinError.textContent = "Incorrect PIN. Try again.";
+    clearCompletedPinError.hidden = false;
+    clearCompletedPinInput.value = "";
+    clearCompletedPinInput.focus();
+    return;
+  }
+
+  if (!WEB_APP_URL || WEB_APP_URL === "PASTE_YOUR_DEPLOYED_WEB_APP_URL_HERE") {
+    clearCompletedPinError.textContent = "Sheet isn't connected yet.";
+    clearCompletedPinError.hidden = false;
+    return;
+  }
+
+  clearCompletedConfirmBtn.disabled = true;
+  clearCompletedConfirmBtn.textContent = "Clearing\u2026";
+
+  try {
+    await fetch(WEB_APP_URL, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ type: "clearCompletedToday" })
+    });
+    closeClearCompletedModal();
+    showStatus("Completed Today cleared.", "ok");
+    setTimeout(fetchCompletedToday, 800);
+  } catch (err) {
+    clearCompletedPinError.textContent = "Couldn't reach the sheet. Try again.";
+    clearCompletedPinError.hidden = false;
+  } finally {
+    clearCompletedConfirmBtn.disabled = false;
+    clearCompletedConfirmBtn.textContent = "Clear";
+  }
+}
+
+clearCompletedBtn.addEventListener("click", openClearCompletedModal);
+clearCompletedCancelBtn.addEventListener("click", closeClearCompletedModal);
+clearCompletedConfirmBtn.addEventListener("click", handleClearCompletedConfirm);
+clearCompletedModal.addEventListener("click", (e) => {
+  if (e.target === clearCompletedModal) closeClearCompletedModal();
+});
+clearCompletedPinInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") handleClearCompletedConfirm();
 });
 
 // Best-effort: let the sheet know right away if a tab closes mid-claim,
