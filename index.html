@@ -1282,9 +1282,11 @@ const GOOGLE_CLIENT_ID = "519974257344-5u0bjm2sdctrnlq6b1oflsvesgn291fc.apps.goo
 const ALLOWED_EMAIL_DOMAIN = "";
 
 // PIN required to clear the "Completed Today" list for everyone. Change
-// this to your own 4-digit code. Same caveat as the rest of this app: this
-// is a client-side check, not hardened security -- it's meant to keep it
-// an intentional manager action, not to stop a determined person.
+// this to your own 4-digit code -- and also update MANAGER_CLEAR_PIN in
+// Apps_Script_Code.gs to match, since it's checked there too now (not just
+// here). Still not hardened security (both are plain text in files you
+// control), but it does mean the endpoint itself rejects a wrong or missing
+// PIN, not just the button in this UI.
 const MANAGER_CLEAR_PIN = "1234";
 
 const AGENT_IDENTITY_KEY = "tpaCallLog.agentIdentityV1";
@@ -2257,6 +2259,8 @@ function closeClearCompletedModal() {
 }
 
 async function handleClearCompletedConfirm() {
+  if (clearCompletedConfirmBtn.disabled) return; // already in flight
+
   const pin = clearCompletedPinInput.value.trim();
   if (pin !== MANAGER_CLEAR_PIN) {
     clearCompletedPinError.textContent = "Incorrect PIN. Try again.";
@@ -2280,7 +2284,7 @@ async function handleClearCompletedConfirm() {
       method: "POST",
       mode: "no-cors",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ type: "clearCompletedToday" })
+      body: JSON.stringify({ type: "clearCompletedToday", pin: pin })
     });
     closeClearCompletedModal();
     showStatus("Completed Today cleared.", "ok");
