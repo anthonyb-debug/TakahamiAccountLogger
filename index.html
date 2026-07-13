@@ -3,6 +3,19 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<script>
+(function () {
+  try {
+    var saved = localStorage.getItem("docket.theme");
+    var theme = (saved === "dark" || saved === "light")
+      ? saved
+      : (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", theme);
+  } catch (e) {
+    // localStorage unavailable -- just leave the default (light) theme.
+  }
+})();
+</script>
 <title>Docket</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%231e3a5f'/%3E%3Crect x='6' y='3' width='12' height='18' rx='2' fill='white' stroke='white' stroke-width='2'/%3E%3Cpath d='M9 3h6v2a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V3z' fill='%239c6b23'/%3E%3Cpath d='M9 13l2 2 4-4' fill='none' stroke='%231e3a5f' stroke-width='2'/%3E%3C/svg%3E" />
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -22,15 +35,62 @@
   --success: #15803d;
   --success-tint: #e3f3e8;
   --danger: #b42318;
+  --danger-tint: #f6e2e2;
   --border: #e2e5ea;
   --terminal-bg: #101826;
   --terminal-fg: #d7dee8;
   --terminal-dim: #7c8aa0;
   --radius: 10px;
   --shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 4px 14px rgba(16, 24, 40, 0.06);
+  --page-shadow: 0 20px 60px rgba(11, 40, 40, 0.12);
+  --input-bg: #fbfcfb;
+  --input-disabled-bg: #eef1f0;
+  --chip-bg: #e2e7e5;
+  --chip-hover-bg: #d3dad8;
+  --code-block-bg: #f7f9f8;
+  --scrollbar-thumb: #d3dad8;
+}
+
+/* ---------- Dark theme ----------
+   Deliberately not an inversion: backgrounds are a soft dark navy-charcoal
+   (never pure black), text is an off-white (never pure white) to keep
+   contrast comfortable rather than harsh, and every accent color is
+   re-picked to stay legible against dark surfaces rather than mechanically
+   flipped. The header gradient and CMD preview stay the same in both
+   themes -- they're deliberately dark "branded" surfaces either way. */
+[data-theme="dark"] {
+  --bg: #0f151d;
+  --panel: #182029;
+  --ink: #dfe3ea;
+  --ink-soft: #8a94a6;
+  --teal: #3d7fd1;
+  --teal-dark: #2f65a3;
+  --teal-tint: #1c2c3f;
+  --amber: #d9a24f;
+  --amber-dark: #c78934;
+  --amber-tint: #33291a;
+  --success: #4ade80;
+  --success-tint: #16301f;
+  --danger: #f87171;
+  --danger-tint: #3a1f1f;
+  --border: #2a323d;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 14px rgba(0, 0, 0, 0.45);
+  --page-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  --input-bg: #12181f;
+  --input-disabled-bg: #1b222b;
+  --chip-bg: #232c37;
+  --chip-hover-bg: #2c3644;
+  --code-block-bg: #10151c;
+  --scrollbar-thumb: #333e4a;
 }
 
 * { box-sizing: border-box; }
+
+body, .tab-section, .agents-panel-inner, .modal-card, .signin-gate-card,
+input, textarea, select, .agent-card, .completed-entry, .mylog-entry,
+.claim-gate, .field-clear-btn, .date-icon-btn {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
 
 html, body {
   margin: 0;
@@ -66,7 +126,7 @@ html, body {
     margin: 16px 0;
     border-radius: 16px;
     overflow: hidden;
-    box-shadow: 0 20px 60px rgba(11, 40, 40, 0.12);
+    box-shadow: var(--page-shadow);
   }
 }
 
@@ -119,7 +179,7 @@ html, body {
 .signin-gate {
   position: fixed;
   inset: 0;
-  background: linear-gradient(160deg, var(--teal-dark), var(--teal));
+  background: linear-gradient(160deg, #0a1d30 0%, #2b4d78 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -128,7 +188,8 @@ html, body {
 }
 .signin-gate[hidden] { display: none; }
 .signin-gate-card {
-  background: #fff;
+  position: relative;
+  background: var(--panel);
   border-radius: 16px;
   padding: 32px 26px;
   max-width: 360px;
@@ -147,6 +208,24 @@ html, body {
   margin: 0 auto 16px;
 }
 .signin-gate-card h1 { font-size: 18px; margin: 0 0 8px; color: var(--ink); }
+
+.theme-toggle-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--ink-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.theme-toggle-btn:hover { background: var(--teal-tint); color: var(--teal); border-color: var(--teal-tint); }
 .signin-gate-card p { font-size: 13px; color: var(--ink-soft); margin: 0 0 18px; line-height: 1.5; }
 .signin-gate-btn { display: flex; justify-content: center; margin-bottom: 8px; min-height: 40px; }
 #signInGateHint {
@@ -272,7 +351,7 @@ html, body {
 }
 .modal[hidden] { display: none; }
 .modal-card {
-  background: #fff;
+  background: var(--panel);
   border-radius: 12px;
   padding: 14px;
   width: 100%;
@@ -334,7 +413,7 @@ html, body {
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--ink);
-  background: #f7f9f8;
+  background: var(--code-block-bg);
   border-radius: 6px;
   padding: 8px;
 }
@@ -378,6 +457,7 @@ html, body {
   flex: 0 0 auto;
 }
 .icon-btn:hover { background: rgba(255, 255, 255, 0.2); color: #fff; border-color: rgba(255, 255, 255, 0.32); }
+.topbar-actions { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
 
 .eyebrow {
   font-size: 10px;
@@ -436,7 +516,7 @@ html, body {
   border-bottom: 1px solid var(--border);
 }
 .status-bar.ok { background: var(--success-tint); color: var(--success); }
-.status-bar.err { background: #f6e2e2; color: var(--danger); }
+.status-bar.err { background: var(--danger-tint); color: var(--danger); }
 .status-bar.info { background: var(--teal-tint); color: var(--teal-dark); }
 
 /* ---------- Scroll area ---------- */
@@ -481,14 +561,14 @@ input, textarea, select {
   padding: 6px 8px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: #fbfcfb;
+  background: var(--input-bg);
   color: var(--ink);
   outline: none;
   width: 100%;
 }
 input:focus, textarea:focus, select:focus {
   border-color: var(--teal);
-  background: #fff;
+  background: var(--panel);
   box-shadow: 0 0 0 3px var(--teal-tint);
 }
 
@@ -508,7 +588,7 @@ input:focus, textarea:focus, select:focus {
   border-radius: 50%;
   border: none;
   padding: 0;
-  background: #e2e7e5;
+  background: var(--chip-bg);
   color: var(--ink-soft);
   font-size: 12px;
   line-height: 1;
@@ -517,7 +597,7 @@ input:focus, textarea:focus, select:focus {
   align-items: center;
   justify-content: center;
 }
-.field-clear-btn:hover { background: #d3dad8; color: var(--ink); }
+.field-clear-btn:hover { background: var(--chip-hover-bg); color: var(--ink); }
 .field-clear-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .field-input-wrap-textarea .field-clear-btn {
   top: 8px;
@@ -645,7 +725,7 @@ textarea#action {
 input:disabled, textarea:disabled, select:disabled {
   opacity: 0.55;
   cursor: not-allowed;
-  background: #eef1f0;
+  background: var(--input-disabled-bg);
 }
 .mini-link:disabled {
   opacity: 0.4;
@@ -662,7 +742,7 @@ input:disabled, textarea:disabled, select:disabled {
   margin-bottom: 8px;
 }
 .log-status.info { background: var(--teal-tint); color: var(--teal-dark); }
-.log-status.err { background: #f6e2e2; color: var(--danger); }
+.log-status.err { background: var(--danger-tint); color: var(--danger); }
 .logs-list {
   max-height: 50vh;
   overflow-y: auto;
@@ -755,13 +835,14 @@ input:disabled, textarea:disabled, select:disabled {
 
 /* Scrollbar polish */
 .form-scroll::-webkit-scrollbar { width: 8px; }
-.form-scroll::-webkit-scrollbar-thumb { background: #d3dad8; border-radius: 8px; }
+.form-scroll::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 8px; }
 </style>
 </head>
 <body>
 
 <div id="signInGate" class="signin-gate">
   <div class="signin-gate-card">
+    <button type="button" id="gateThemeToggleBtn" class="theme-toggle-btn" aria-label="Toggle dark mode"></button>
     <div class="signin-gate-mark">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff" stroke-width="2"><rect x="6" y="3" width="12" height="18" rx="2" fill="#fff"></rect><path d="M9 3h6v2a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V3z" fill="#9c6b23" stroke="none"></path><path d="M9 13l2 2 4-4" stroke="#1e3a5f"></path></svg>
     </div>
@@ -785,9 +866,12 @@ input:disabled, textarea:disabled, select:disabled {
         <h1>Docket</h1>
       </div>
     </div>
-    <button id="myLogBtn" class="icon-btn" title="View my logged claims" aria-label="View My Log">
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path></svg>
-    </button>
+    <div class="topbar-actions">
+      <button type="button" id="headerThemeToggleBtn" class="icon-btn" aria-label="Toggle dark mode"></button>
+      <button id="myLogBtn" class="icon-btn" title="View my logged claims" aria-label="View My Log">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path></svg>
+      </button>
+    </div>
   </header>
 
   <div id="liveClock" class="live-clock">
@@ -1613,6 +1697,67 @@ function storageSet(key, value) {
     // storage unavailable (e.g. private browsing) -- fail silently
   }
 }
+
+// ---------- Theme toggle ----------
+// Uses a plain (non-JSON) localStorage value so the tiny inline script in
+// <head> -- which runs before this one, to apply the theme before first
+// paint and avoid a flash of the wrong theme -- can read it directly.
+const THEME_KEY = "docket.theme";
+const gateThemeToggleBtn = document.getElementById("gateThemeToggleBtn");
+const headerThemeToggleBtn = document.getElementById("headerThemeToggleBtn");
+
+const SUN_ICON =
+  '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="M4.93 4.93l1.41 1.41"></path><path d="M17.66 17.66l1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="M6.34 17.66l-1.41 1.41"></path><path d="M19.07 4.93l-1.41 1.41"></path></svg>';
+const MOON_ICON =
+  '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>';
+
+function getCurrentTheme() {
+  return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  // Icon shows what clicking it would switch *to*.
+  const icon = theme === "dark" ? SUN_ICON : MOON_ICON;
+  const label = theme === "dark" ? "Switch to light mode" : "Switch to dark mode";
+  [gateThemeToggleBtn, headerThemeToggleBtn].forEach((btn) => {
+    if (!btn) return;
+    btn.innerHTML = icon;
+    btn.setAttribute("aria-label", label);
+    btn.title = label;
+  });
+}
+
+function toggleTheme() {
+  const next = getCurrentTheme() === "dark" ? "light" : "dark";
+  try {
+    localStorage.setItem(THEME_KEY, next);
+  } catch (e) {
+    // storage unavailable -- theme just won't persist across reloads
+  }
+  applyTheme(next);
+}
+
+if (gateThemeToggleBtn) gateThemeToggleBtn.addEventListener("click", toggleTheme);
+if (headerThemeToggleBtn) headerThemeToggleBtn.addEventListener("click", toggleTheme);
+
+// If the agent never explicitly chose a theme, keep following the OS-level
+// preference live (e.g. their system switching to dark mode at sunset).
+if (window.matchMedia) {
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
+    let hasExplicitChoice = false;
+    try {
+      hasExplicitChoice = !!localStorage.getItem(THEME_KEY);
+    } catch (err) {
+      hasExplicitChoice = false;
+    }
+    if (!hasExplicitChoice) applyTheme(e.matches ? "dark" : "light");
+  });
+}
+
+// Sync the toggle buttons' icons with whatever the <head> script already
+// applied (it only sets the attribute -- these buttons didn't exist yet).
+applyTheme(getCurrentTheme());
 
 // ---------- Init ----------
 function init() {
