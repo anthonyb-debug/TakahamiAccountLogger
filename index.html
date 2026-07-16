@@ -838,8 +838,15 @@ input:disabled, textarea:disabled, select:disabled {
   padding: 6px 10px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 6px;
   color: var(--terminal-dim);
+}
+.terminal-header-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 .terminal-title {
   font-size: 10px;
@@ -860,6 +867,26 @@ input:disabled, textarea:disabled, select:disabled {
   word-break: break-word;
   min-height: 48px;
 }
+
+/* ---------- Per-CMD-block preview + copy ---------- */
+.cmd-block-preview {
+  margin-top: 12px;
+}
+.cmd-block-copy-btn {
+  flex: 0 0 auto;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 4px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.cmd-block-copy-btn:hover { background: rgba(255, 255, 255, 0.2); color: #fff; border-color: rgba(255, 255, 255, 0.32); }
+.cmd-block-copy-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .log-hint {
   font-size: 11px;
@@ -1042,23 +1069,11 @@ input:disabled, textarea:disabled, select:disabled {
       </div>
     </section>
 
-    <section class="terminal-card">
-      <div class="terminal-header">
-        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 9l-3 3 3 3"></path><path d="M16 9l3 3-3 3"></path><path d="M13 5l-2 14"></path></svg>
-        <span class="terminal-title">CMD preview</span>
-      </div>
-      <pre id="cmdPreview" class="terminal-body"></pre>
-    </section>
-
     <p class="log-hint" id="logHint"></p>
 
   </main>
 
   <footer class="action-bar">
-    <button id="copyBtn" class="btn btn-amber">
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-      Copy CMD Template
-    </button>
     <button id="endSessionBtn" class="btn btn-teal">End Session</button>
   </footer>
 
@@ -1312,11 +1327,9 @@ function syncAllClearButtons() {
   });
 }
 
-const cmdPreview = document.getElementById("cmdPreview");
 const statusBar = document.getElementById("statusBar");
 const logHint = document.getElementById("logHint");
 
-const copyBtn = document.getElementById("copyBtn");
 const endSessionBtn = document.getElementById("endSessionBtn");
 
 const cmdBlocksList = document.getElementById("cmdBlocksList");
@@ -1436,7 +1449,6 @@ function showConfirm(message) {
 // setFormEnabled(), since blocks can be added/removed at any time.)
 const STATIC_LOCKABLE_CONTROLS = [
   ...HEADER_FIELD_IDS.map((id) => els[id]),
-  copyBtn,
   endSessionBtn,
   addCmdBlockBtn
 ];
@@ -1684,7 +1696,7 @@ function setFormEnabled(enabled) {
     [
       block.els.cmdDate, block.els.cmdCarrier, block.els.tpa, block.els.billedAmount,
       block.els.originalAllowed, block.els.actionTemplateSelect, block.els.action,
-      block.els.repRef, block.els.syncCarrierBtn
+      block.els.repRef, block.els.syncCarrierBtn, block.els.copyBtn
     ].forEach((el) => (el.disabled = !enabled));
 
     // The first block can never be removed, so its remove button stays
@@ -1903,7 +1915,7 @@ function init() {
     claimGateActive.hidden = true;
   }
 
-  updatePreview();
+  cmdBlocks.forEach(renderBlockPreview);
   startAgentsPolling();
 }
 
@@ -2088,6 +2100,17 @@ function cmdBlockMarkup() {
         <span>Rep &amp; Ref#</span>
         <input type="text" data-field="repRef" placeholder="Rep name / callback ref #" autocomplete="off" />
       </label>
+
+      <div class="cmd-block-preview terminal-card">
+        <div class="terminal-header">
+          <span class="terminal-header-left">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 9l-3 3 3 3"></path><path d="M16 9l3 3-3 3"></path><path d="M13 5l-2 14"></path></svg>
+            <span class="terminal-title">CMD preview</span>
+          </span>
+          <button type="button" class="cmd-block-copy-btn" data-role="copy">Copy</button>
+        </div>
+        <pre class="terminal-body" data-role="preview"></pre>
+      </div>
     </div>
   `.trim();
 }
@@ -2123,7 +2146,9 @@ function addCmdBlock(opts) {
     originalAllowed: root.querySelector('[data-field="originalAllowed"]'),
     actionTemplateSelect: root.querySelector('[data-field="actionTemplateSelect"]'),
     action: root.querySelector('[data-field="action"]'),
-    repRef: root.querySelector('[data-field="repRef"]')
+    repRef: root.querySelector('[data-field="repRef"]'),
+    previewEl: root.querySelector('[data-role="preview"]'),
+    copyBtn: root.querySelector('[data-role="copy"]')
   };
 
   const block = { n: cmdBlockCounter, els: blockEls, lastAppliedTemplateKey: "" };
@@ -2135,7 +2160,7 @@ function addCmdBlock(opts) {
 
   CMD_FIELD_KEYS.forEach((key) => {
     blockEls[key].addEventListener("input", () => {
-      updatePreview();
+      renderBlockPreview(block);
       scheduleSave();
     });
   });
@@ -2143,7 +2168,7 @@ function addCmdBlock(opts) {
   ["billedAmount", "originalAllowed"].forEach((key) => {
     blockEls[key].addEventListener("blur", () => {
       formatCurrencyOnBlur(blockEls[key]);
-      updatePreview();
+      renderBlockPreview(block);
       scheduleSave();
     });
   });
@@ -2151,7 +2176,7 @@ function addCmdBlock(opts) {
   blockEls.syncCarrierBtn.addEventListener("click", () => {
     blockEls.cmdCarrier.value = els.carrierTop.value;
     if (blockEls.cmdCarrier.clearBtn) blockEls.cmdCarrier.clearBtn.hidden = !blockEls.cmdCarrier.value;
-    updatePreview();
+    renderBlockPreview(block);
     scheduleSave();
   });
 
@@ -2182,7 +2207,7 @@ function addCmdBlock(opts) {
       : DEFAULT_REP_REF_PLACEHOLDER;
 
     syncAllClearButtons();
-    updatePreview();
+    renderBlockPreview(block);
     scheduleSave();
 
     // Highlight the first [placeholder] so agents can just start typing over it.
@@ -2190,6 +2215,8 @@ function addCmdBlock(opts) {
   });
 
   attachPlaceholderTabbing(blockEls.action);
+
+  blockEls.copyBtn.addEventListener("click", () => copyBlockTemplate(block));
 
   blockEls.removeBtn.addEventListener("click", async () => {
     const hasContent = !isCmdBlockEmpty(block);
@@ -2203,6 +2230,7 @@ function addCmdBlock(opts) {
   cmdBlocks.push(block);
   renumberCmdBlocks();
   setFormEnabled(claimStarted); // match the form's current lock state
+  renderBlockPreview(block);
   return block;
 }
 
@@ -2212,7 +2240,6 @@ function removeCmdBlock(block) {
   block.els.root.remove();
   cmdBlocks.splice(idx, 1);
   renumberCmdBlocks();
-  updatePreview();
   scheduleSave();
 }
 
@@ -2232,7 +2259,6 @@ function isCmdBlockEmpty(block) {
 
 addCmdBlockBtn.addEventListener("click", () => {
   const block = addCmdBlock();
-  updatePreview();
   scheduleSave();
   block.els.cmdCarrier.focus();
 });
@@ -2251,17 +2277,8 @@ Rep & Ref#: ${v("repRef")}`
   );
 }
 
-function buildTemplate() {
-  if (cmdBlocks.length <= 1) {
-    return cmdBlocks.length ? buildBlockTemplateText(cmdBlocks[0]) : "";
-  }
-  return cmdBlocks
-    .map((block, i) => `--- Claim ${i + 1} of ${cmdBlocks.length} ---\n${buildBlockTemplateText(block)}`)
-    .join("\n\n");
-}
-
-function updatePreview() {
-  cmdPreview.textContent = buildTemplate();
+function renderBlockPreview(block) {
+  block.els.previewEl.textContent = buildBlockTemplateText(block);
 }
 
 // ---------- Status messages ----------
@@ -2301,27 +2318,28 @@ async function copyTextToClipboard(text) {
   }
 }
 
-async function copyTemplate() {
+async function copyBlockTemplate(block) {
   if (!claimStarted) {
     showStatus("Click \u201cWork on a Claim\u201d first.", "err");
     return;
   }
-  const original = copyBtn.innerHTML;
-  copyBtn.disabled = true;
+  const btn = block.els.copyBtn;
+  const original = btn.textContent;
+  btn.disabled = true;
 
-  const text = buildTemplate();
+  const text = buildBlockTemplateText(block);
   const ok = await copyTextToClipboard(text);
 
   if (ok) {
     showStatus("CMD template copied to clipboard.", "ok");
-    copyBtn.innerHTML = "\u2713 Copied to clipboard!";
+    btn.textContent = "\u2713 Copied!";
   } else {
     showStatus("Couldn't copy automatically \u2014 select and copy manually.", "err");
-    copyBtn.innerHTML = "Couldn't copy \u2014 try again";
+    btn.textContent = "Couldn't copy";
   }
   setTimeout(() => {
-    copyBtn.innerHTML = original;
-    copyBtn.disabled = !claimStarted;
+    btn.textContent = original;
+    btn.disabled = !claimStarted;
   }, 1600);
 }
 
@@ -2343,7 +2361,7 @@ function resetFormForNextClaim() {
   syncAllClearButtons();
   endClaimSession();
   saveNow();
-  updatePreview();
+  renderBlockPreview(cmdBlocks[0]);
 }
 
 async function endSession() {
@@ -2439,13 +2457,11 @@ async function endSession() {
 // ---------- Event wiring ----------
 HEADER_FIELD_IDS.forEach((id) => {
   els[id].addEventListener("input", () => {
-    updatePreview();
     scheduleSave();
     if (id === "patientName" || id === "carrierTop") schedulePresenceUpdate();
   });
 });
 
-copyBtn.addEventListener("click", copyTemplate);
 endSessionBtn.addEventListener("click", endSession);
 
 startClaimBtn.addEventListener("click", startClaimSession);
