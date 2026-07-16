@@ -576,6 +576,58 @@ html, body {
 .field-row { display: flex; gap: 8px; }
 .field-row .field { flex: 1; min-width: 0; }
 
+/* ---------- CMD blocks (one or more claims per section) ---------- */
+.cmd-block + .cmd-block {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border);
+}
+.cmd-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.cmd-block-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+}
+.cmd-block-remove-btn {
+  background: none;
+  border: none;
+  color: var(--danger);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 5px;
+}
+.cmd-block-remove-btn:hover { background: var(--danger-tint); }
+.cmd-block-remove-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.add-cmd-block-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 14px;
+  padding: 8px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--teal-dark);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+[data-theme="dark"] .add-cmd-block-btn { color: var(--teal); }
+.add-cmd-block-btn:hover { background: var(--teal-tint); }
+.add-cmd-block-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
 input, textarea, select {
   font-family: inherit;
   font-size: 13px;
@@ -680,12 +732,12 @@ input[type="number"]::-webkit-inner-spin-button {
 }
 input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 
-select#actionTemplateSelect {
+.cmd-block select[data-field="actionTemplateSelect"] {
   color: var(--ink-soft);
   cursor: pointer;
 }
 
-textarea#action {
+.cmd-block textarea[data-field="action"] {
   resize: vertical;
   font-family: inherit;
 }
@@ -981,71 +1033,12 @@ input:disabled, textarea:disabled, select:disabled {
       <div class="section-inner">
         <p class="eyebrow"><span class="section-dot section-dot-gold"></span>CMD Template &middot; TPA Call</p>
 
-        <div class="field-row">
-          <label class="field">
-            <span>Date</span>
-            <input type="text" id="cmdDate" placeholder="MM/DD/YYYY" autocomplete="off" />
-          </label>
-          <label class="field">
-            <span>Carrier
-              <button type="button" id="syncCarrierBtn" class="mini-link">use above</button>
-            </span>
-            <input type="text" id="cmdCarrier" autocomplete="off" />
-          </label>
-        </div>
+        <div id="cmdBlocksList"></div>
 
-        <label class="field">
-          <span>TPA</span>
-          <input type="text" id="tpa" autocomplete="off" />
-        </label>
-
-        <div class="field-row">
-          <label class="field">
-            <span>Billed Amount</span>
-            <input type="text" id="billedAmount" placeholder="$0.00" inputmode="decimal" autocomplete="off" />
-          </label>
-          <label class="field">
-            <span>Original Allowed</span>
-            <input type="text" id="originalAllowed" placeholder="$0.00" inputmode="decimal" autocomplete="off" />
-          </label>
-        </div>
-
-        <label class="field">
-          <span>Action Template</span>
-          <select id="actionTemplateSelect">
-            <option value="">Pick a template&hellip;</option>
-            <optgroup label="Negotiation / Appeal">
-              <option value="nego_appeal">Initial APL request</option>
-            </optgroup>
-            <optgroup label="Appeal Follow Up">
-              <option value="appeal_fu_mail">Sent by mail</option>
-              <option value="appeal_fu_fax">Sent by fax</option>
-            </optgroup>
-            <optgroup label="Appeal Follow Up Escalation">
-              <option value="appeal_fu_escalation">Escalation status check</option>
-            </optgroup>
-            <optgroup label="TPA Proposals">
-              <option value="tpa_reopen">Reopen after declined counter-offer</option>
-              <option value="tpa_pricing_sheet">Confirm pricing sheet / open Pymt Status Inq</option>
-            </optgroup>
-            <optgroup label="Legacy Non-Negotiable / No TPA">
-              <option value="legacy_not_eligible_a">Not eligible &mdash; contacted INS</option>
-              <option value="legacy_not_eligible_b">Not eligible &mdash; priced externally check</option>
-            </optgroup>
-          </select>
-        </label>
-
-        <label class="field">
-          <span>Action
-            <span class="mini-hint">type over highlighted [ ] &middot; Tab = next</span>
-          </span>
-          <textarea id="action" rows="5" placeholder="Pick a template above, or type your own"></textarea>
-        </label>
-
-        <label class="field">
-          <span>Rep &amp; Ref#</span>
-          <input type="text" id="repRef" placeholder="Rep name / callback ref #" autocomplete="off" />
-        </label>
+        <button type="button" id="addCmdBlockBtn" class="add-cmd-block-btn">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+          Add another CMD template
+        </button>
       </div>
     </section>
 
@@ -1190,65 +1183,64 @@ const TPA_PROPOSAL_KEYS = ["tpa_reopen", "tpa_pricing_sheet"];
 const TPA_PROPOSAL_REP_REF_HINT = "[INS Rep/Ref#] // [TPA Rep/Ref#]";
 const DEFAULT_REP_REF_PLACEHOLDER = "Rep name / callback ref #";
 
-const FIELD_IDS = [
-  "patientName", "facility", "carrierTop", "dob", "memberId", "tin", "npi", "dos", "numClaims",
-  "cmdDate", "cmdCarrier", "tpa", "billedAmount", "originalAllowed", "action", "repRef"
+// "Header" fields: one set per claim session, entered once.
+const HEADER_FIELD_IDS = [
+  "patientName", "facility", "carrierTop", "dob", "memberId", "tin", "npi", "dos", "numClaims"
 ];
 
-const els = {};
-FIELD_IDS.forEach((id) => (els[id] = document.getElementById(id)));
+// CMD Template fields: these repeat once per CMD block (one per TPA call /
+// claim). Each block's inputs are looked up by data-field, not id, so any
+// number of blocks can exist without id collisions.
+const CMD_FIELD_KEYS = ["cmdDate", "cmdCarrier", "tpa", "billedAmount", "originalAllowed", "action", "repRef"];
 
-// Wraps each field's input/textarea with a small "x" button that clears it.
-// Done in JS (rather than hand-editing every field's markup) so it applies
-// uniformly and stays in sync with FIELD_IDS.
-const CLEAR_BUTTONS = {};
+const els = {};
+HEADER_FIELD_IDS.forEach((id) => (els[id] = document.getElementById(id)));
+
+// Wraps a field's input/textarea with a small "x" button that clears it.
+// Stores the button on the element itself (el.clearBtn) so both header
+// fields and per-block CMD fields can share this helper.
+function wrapWithClearButton(el) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "field-input-wrap" + (el.tagName === "TEXTAREA" ? " field-input-wrap-textarea" : "");
+  el.parentNode.insertBefore(wrapper, el);
+  wrapper.appendChild(el);
+
+  const clearBtn = document.createElement("button");
+  clearBtn.type = "button";
+  clearBtn.className = "field-clear-btn";
+  clearBtn.setAttribute("aria-label", "Clear this field");
+  clearBtn.textContent = "\u00D7";
+  clearBtn.hidden = true;
+  wrapper.appendChild(clearBtn);
+  el.clearBtn = clearBtn;
+
+  clearBtn.addEventListener("click", () => {
+    el.value = "";
+    clearBtn.hidden = true;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.focus();
+  });
+
+  el.addEventListener("input", () => {
+    clearBtn.hidden = !el.value;
+  });
+
+  return clearBtn;
+}
 
 function addClearButtons() {
-  FIELD_IDS.forEach((id) => {
-    const el = els[id];
-    if (!el) return;
-
-    const wrapper = document.createElement("div");
-    wrapper.className = "field-input-wrap" + (el.tagName === "TEXTAREA" ? " field-input-wrap-textarea" : "");
-    el.parentNode.insertBefore(wrapper, el);
-    wrapper.appendChild(el);
-
-    const clearBtn = document.createElement("button");
-    clearBtn.type = "button";
-    clearBtn.className = "field-clear-btn";
-    clearBtn.setAttribute("aria-label", "Clear this field");
-    clearBtn.textContent = "\u00D7";
-    clearBtn.hidden = true;
-    wrapper.appendChild(clearBtn);
-    CLEAR_BUTTONS[id] = clearBtn;
-
-    clearBtn.addEventListener("click", () => {
-      el.value = "";
-      clearBtn.hidden = true;
-      el.dispatchEvent(new Event("input", { bubbles: true }));
-      el.focus();
-    });
-
-    el.addEventListener("input", () => {
-      clearBtn.hidden = !el.value;
-    });
-  });
+  HEADER_FIELD_IDS.forEach((id) => wrapWithClearButton(els[id]));
 }
 addClearButtons();
 
-// Adds a small calendar button next to DOB and CMD Date that opens the
+// Adds a small calendar button next to a text field that opens the
 // browser's native date picker via showPicker(). The visible field stays
 // plain text underneath, so typing or pasting anything (including non-date
 // text) still works fine -- picking a date is just a shortcut that fills
-// it in as MM/DD/YYYY.
-const DATE_PICKERS = {};
-const DATE_PICKER_BUTTONS = {};
-const DATE_PICKER_FIELDS = ["dob", "cmdDate"];
-
-function addDatePickerButton(id) {
-  const el = els[id];
-  if (!el) return;
-  const wrap = el.parentNode; // the .field-input-wrap created by addClearButtons()
+// it in as MM/DD/YYYY. Stores refs on the element (el.datePicker /
+// el.dateIconBtn) so setFormEnabled() can find and lock them later.
+function addDatePickerTo(el) {
+  const wrap = el.parentNode; // the .field-input-wrap created by wrapWithClearButton()
   if (!wrap) return;
 
   wrap.classList.add("field-input-wrap-has-date");
@@ -1277,8 +1269,8 @@ function addDatePickerButton(id) {
 
   // Sits just left of the clear button, which is always the wrapper's last child.
   wrap.insertBefore(dateBox, wrap.lastElementChild);
-  DATE_PICKERS[id] = picker;
-  DATE_PICKER_BUTTONS[id] = iconBtn;
+  el.datePicker = picker;
+  el.dateIconBtn = iconBtn;
 
   iconBtn.addEventListener("click", () => {
     if (typeof picker.showPicker === "function") {
@@ -1302,14 +1294,21 @@ function addDatePickerButton(id) {
   });
 }
 
-DATE_PICKER_FIELDS.forEach(addDatePickerButton);
+addDatePickerTo(els.dob);
 
 // Call this after any programmatic (non-typed) value change -- draft
 // restore, template auto-fill, "use above", form clear on End Session --
 // since those don't fire an "input" event on their own.
 function syncAllClearButtons() {
-  FIELD_IDS.forEach((id) => {
-    if (CLEAR_BUTTONS[id]) CLEAR_BUTTONS[id].hidden = !els[id].value;
+  HEADER_FIELD_IDS.forEach((id) => {
+    const el = els[id];
+    if (el.clearBtn) el.clearBtn.hidden = !el.value;
+  });
+  cmdBlocks.forEach((block) => {
+    CMD_FIELD_KEYS.forEach((key) => {
+      const el = block.els[key];
+      if (el.clearBtn) el.clearBtn.hidden = !el.value;
+    });
   });
 }
 
@@ -1319,9 +1318,9 @@ const logHint = document.getElementById("logHint");
 
 const copyBtn = document.getElementById("copyBtn");
 const endSessionBtn = document.getElementById("endSessionBtn");
-const syncCarrierBtn = document.getElementById("syncCarrierBtn");
 
-const actionTemplateSelect = document.getElementById("actionTemplateSelect");
+const cmdBlocksList = document.getElementById("cmdBlocksList");
+const addCmdBlockBtn = document.getElementById("addCmdBlockBtn");
 
 const claimGateStart = document.getElementById("claimGateStart");
 const claimGateActive = document.getElementById("claimGateActive");
@@ -1433,12 +1432,13 @@ function showConfirm(message) {
 }
 
 // Everything that should stay locked until an agent clicks "Work on a Claim".
-const LOCKABLE_CONTROLS = [
-  ...FIELD_IDS.map((id) => els[id]),
-  actionTemplateSelect,
-  syncCarrierBtn,
+// (Per-block CMD Template controls are locked/unlocked separately inside
+// setFormEnabled(), since blocks can be added/removed at any time.)
+const STATIC_LOCKABLE_CONTROLS = [
+  ...HEADER_FIELD_IDS.map((id) => els[id]),
   copyBtn,
-  endSessionBtn
+  endSessionBtn,
+  addCmdBlockBtn
 ];
 
 let claimStarted = false;
@@ -1669,17 +1669,34 @@ function schedulePresenceUpdate() {
 }
 
 function setFormEnabled(enabled) {
-  LOCKABLE_CONTROLS.forEach((el) => {
+  STATIC_LOCKABLE_CONTROLS.forEach((el) => {
     if (el) el.disabled = !enabled;
   });
-  Object.values(CLEAR_BUTTONS).forEach((btn) => {
-    btn.disabled = !enabled;
+
+  HEADER_FIELD_IDS.forEach((id) => {
+    const el = els[id];
+    if (el.clearBtn) el.clearBtn.disabled = !enabled;
   });
-  Object.values(DATE_PICKERS).forEach((picker) => {
-    picker.disabled = !enabled;
-  });
-  Object.values(DATE_PICKER_BUTTONS).forEach((btn) => {
-    btn.disabled = !enabled;
+  if (els.dob.datePicker) els.dob.datePicker.disabled = !enabled;
+  if (els.dob.dateIconBtn) els.dob.dateIconBtn.disabled = !enabled;
+
+  cmdBlocks.forEach((block, i) => {
+    [
+      block.els.cmdDate, block.els.cmdCarrier, block.els.tpa, block.els.billedAmount,
+      block.els.originalAllowed, block.els.actionTemplateSelect, block.els.action,
+      block.els.repRef, block.els.syncCarrierBtn
+    ].forEach((el) => (el.disabled = !enabled));
+
+    // The first block can never be removed, so its remove button stays
+    // disabled/hidden regardless of lock state.
+    block.els.removeBtn.disabled = !enabled || i === 0;
+
+    CMD_FIELD_KEYS.forEach((key) => {
+      const el = block.els[key];
+      if (el.clearBtn) el.clearBtn.disabled = !enabled;
+    });
+    if (block.els.cmdDate.datePicker) block.els.cmdDate.datePicker.disabled = !enabled;
+    if (block.els.cmdDate.dateIconBtn) block.els.cmdDate.dateIconBtn.disabled = !enabled;
   });
 }
 
@@ -1830,20 +1847,37 @@ function init() {
   renderAgentIdentity();
   initGoogleSignIn();
 
+  // Always start with one CMD block; the draft restore below can add more
+  // if the saved session had several.
+  addCmdBlock({ skipDefaultDate: true });
+
   const draft = storageGet(DRAFT_KEY);
   if (draft) {
-    FIELD_IDS.forEach((id) => {
+    HEADER_FIELD_IDS.forEach((id) => {
       if (draft[id] !== undefined) els[id].value = draft[id];
     });
+
+    if (Array.isArray(draft.cmdBlocks) && draft.cmdBlocks.length) {
+      draft.cmdBlocks.forEach((blockData, i) => {
+        const block = i === 0 ? cmdBlocks[0] : addCmdBlock({ skipDefaultDate: true });
+        CMD_FIELD_KEYS.forEach((key) => {
+          if (blockData[key] !== undefined) block.els[key].value = blockData[key];
+        });
+        if (blockData.actionTemplateKey) {
+          block.els.actionTemplateSelect.value = blockData.actionTemplateKey;
+          block.lastAppliedTemplateKey = blockData.actionTemplateKey;
+        }
+        // One-time cleanup: earlier versions inserted this as real text into
+        // Rep & Ref# instead of showing it as a placeholder guide. If a
+        // saved/in-progress claim still has it, clear it so it goes back to
+        // being just a hint rather than text that needs to be erased.
+        if (block.els.repRef.value.trim() === TPA_PROPOSAL_REP_REF_HINT) {
+          block.els.repRef.value = "";
+        }
+      });
+    }
   }
-  // One-time cleanup: earlier versions inserted this as real text into
-  // Rep & Ref# instead of showing it as a placeholder guide. If a
-  // saved/in-progress claim still has it, clear it so it goes back to
-  // being just a hint rather than text that needs to be erased.
-  if (els.repRef.value.trim() === TPA_PROPOSAL_REP_REF_HINT) {
-    els.repRef.value = "";
-  }
-  if (!els.cmdDate.value) els.cmdDate.value = todayString();
+  if (!cmdBlocks[0].els.cmdDate.value) cmdBlocks[0].els.cmdDate.value = todayString();
   syncAllClearButtons();
 
   if (draft && draft.claimStarted && draft.claimStartTime) {
@@ -1885,7 +1919,13 @@ let saveTimer = null;
 
 function buildDraftObject() {
   const draft = {};
-  FIELD_IDS.forEach((id) => (draft[id] = els[id].value));
+  HEADER_FIELD_IDS.forEach((id) => (draft[id] = els[id].value));
+  draft.cmdBlocks = cmdBlocks.map((block) => {
+    const blockData = {};
+    CMD_FIELD_KEYS.forEach((key) => (blockData[key] = block.els[key].value));
+    blockData.actionTemplateKey = block.lastAppliedTemplateKey;
+    return blockData;
+  });
   draft.claimStarted = claimStarted;
   draft.claimStartTime = claimStartTime;
   draft.mySessionId = mySessionId;
@@ -1968,9 +2008,238 @@ function attachPlaceholderTabbing(el) {
   });
 }
 
-// ---------- CMD template ----------
-function buildTemplate() {
-  const v = (id) => els[id].value.trim();
+// ---------- CMD blocks (one per claim/TPA call) ----------
+// Each block owns its own set of CMD Template fields (Date, Carrier, TPA,
+// Billed Amount, Original Allowed, Action Template, Action, Rep & Ref#).
+// Fields are looked up by data-field within the block's root element rather
+// than by id, so any number of blocks can exist at once without id clashes.
+const cmdBlocks = [];
+let cmdBlockCounter = 0;
+
+function cmdBlockMarkup() {
+  return `
+    <div class="cmd-block">
+      <div class="cmd-block-header">
+        <span class="cmd-block-title" data-role="title">CMD Template</span>
+        <button type="button" class="cmd-block-remove-btn" data-role="remove" hidden>Remove</button>
+      </div>
+      <div class="field-row">
+        <label class="field">
+          <span>Date</span>
+          <input type="text" data-field="cmdDate" placeholder="MM/DD/YYYY" autocomplete="off" />
+        </label>
+        <label class="field">
+          <span>Carrier
+            <button type="button" class="mini-link" data-role="syncCarrier">use above</button>
+          </span>
+          <input type="text" data-field="cmdCarrier" autocomplete="off" />
+        </label>
+      </div>
+
+      <label class="field">
+        <span>TPA</span>
+        <input type="text" data-field="tpa" autocomplete="off" />
+      </label>
+
+      <div class="field-row">
+        <label class="field">
+          <span>Billed Amount</span>
+          <input type="text" data-field="billedAmount" placeholder="$0.00" inputmode="decimal" autocomplete="off" />
+        </label>
+        <label class="field">
+          <span>Original Allowed</span>
+          <input type="text" data-field="originalAllowed" placeholder="$0.00" inputmode="decimal" autocomplete="off" />
+        </label>
+      </div>
+
+      <label class="field">
+        <span>Action Template</span>
+        <select data-field="actionTemplateSelect">
+          <option value="">Pick a template&hellip;</option>
+          <optgroup label="Negotiation / Appeal">
+            <option value="nego_appeal">Initial APL request</option>
+          </optgroup>
+          <optgroup label="Appeal Follow Up">
+            <option value="appeal_fu_mail">Sent by mail</option>
+            <option value="appeal_fu_fax">Sent by fax</option>
+          </optgroup>
+          <optgroup label="Appeal Follow Up Escalation">
+            <option value="appeal_fu_escalation">Escalation status check</option>
+          </optgroup>
+          <optgroup label="TPA Proposals">
+            <option value="tpa_reopen">Reopen after declined counter-offer</option>
+            <option value="tpa_pricing_sheet">Confirm pricing sheet / open Pymt Status Inq</option>
+          </optgroup>
+          <optgroup label="Legacy Non-Negotiable / No TPA">
+            <option value="legacy_not_eligible_a">Not eligible &mdash; contacted INS</option>
+            <option value="legacy_not_eligible_b">Not eligible &mdash; priced externally check</option>
+          </optgroup>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>Action
+          <span class="mini-hint">type over highlighted [ ] &middot; Tab = next</span>
+        </span>
+        <textarea data-field="action" rows="5" placeholder="Pick a template above, or type your own"></textarea>
+      </label>
+
+      <label class="field">
+        <span>Rep &amp; Ref#</span>
+        <input type="text" data-field="repRef" placeholder="Rep name / callback ref #" autocomplete="off" />
+      </label>
+    </div>
+  `.trim();
+}
+
+// Updates each block's header label ("CMD Template" / "CMD Template #2" /
+// ...) and shows the remove button on every block except the first, which
+// always stays as the one guaranteed block.
+function renumberCmdBlocks() {
+  cmdBlocks.forEach((block, i) => {
+    block.els.title.textContent = cmdBlocks.length > 1 ? `CMD Template #${i + 1}` : "CMD Template";
+    block.els.removeBtn.hidden = i === 0;
+  });
+}
+
+function addCmdBlock(opts) {
+  opts = opts || {};
+  cmdBlockCounter += 1;
+
+  const wrapper = document.createElement("div");
+  wrapper.innerHTML = cmdBlockMarkup();
+  const root = wrapper.firstElementChild;
+  cmdBlocksList.appendChild(root);
+
+  const blockEls = {
+    root,
+    title: root.querySelector('[data-role="title"]'),
+    removeBtn: root.querySelector('[data-role="remove"]'),
+    syncCarrierBtn: root.querySelector('[data-role="syncCarrier"]'),
+    cmdDate: root.querySelector('[data-field="cmdDate"]'),
+    cmdCarrier: root.querySelector('[data-field="cmdCarrier"]'),
+    tpa: root.querySelector('[data-field="tpa"]'),
+    billedAmount: root.querySelector('[data-field="billedAmount"]'),
+    originalAllowed: root.querySelector('[data-field="originalAllowed"]'),
+    actionTemplateSelect: root.querySelector('[data-field="actionTemplateSelect"]'),
+    action: root.querySelector('[data-field="action"]'),
+    repRef: root.querySelector('[data-field="repRef"]')
+  };
+
+  const block = { n: cmdBlockCounter, els: blockEls, lastAppliedTemplateKey: "" };
+
+  CMD_FIELD_KEYS.forEach((key) => wrapWithClearButton(blockEls[key]));
+  addDatePickerTo(blockEls.cmdDate);
+
+  if (!opts.skipDefaultDate) blockEls.cmdDate.value = todayString();
+
+  CMD_FIELD_KEYS.forEach((key) => {
+    blockEls[key].addEventListener("input", () => {
+      updatePreview();
+      scheduleSave();
+    });
+  });
+
+  ["billedAmount", "originalAllowed"].forEach((key) => {
+    blockEls[key].addEventListener("blur", () => {
+      formatCurrencyOnBlur(blockEls[key]);
+      updatePreview();
+      scheduleSave();
+    });
+  });
+
+  blockEls.syncCarrierBtn.addEventListener("click", () => {
+    blockEls.cmdCarrier.value = els.carrierTop.value;
+    if (blockEls.cmdCarrier.clearBtn) blockEls.cmdCarrier.clearBtn.hidden = !blockEls.cmdCarrier.value;
+    updatePreview();
+    scheduleSave();
+  });
+
+  blockEls.actionTemplateSelect.addEventListener("change", async () => {
+    const key = blockEls.actionTemplateSelect.value;
+    if (!key) {
+      block.lastAppliedTemplateKey = "";
+      return;
+    }
+
+    const template = ACTION_TEMPLATES[key];
+    const current = blockEls.action.value.trim();
+    if (current && current !== template) {
+      const ok = await showConfirm("Replace the current Action text with this template?");
+      if (!ok) {
+        blockEls.actionTemplateSelect.value = block.lastAppliedTemplateKey; // revert to whatever's actually applied
+        return;
+      }
+    }
+
+    blockEls.action.value = template;
+    block.lastAppliedTemplateKey = key;
+
+    // Guide text only -- shows when the field is empty, never inserted as
+    // real content, so there's nothing an agent needs to erase.
+    blockEls.repRef.placeholder = TPA_PROPOSAL_KEYS.includes(key)
+      ? TPA_PROPOSAL_REP_REF_HINT
+      : DEFAULT_REP_REF_PLACEHOLDER;
+
+    syncAllClearButtons();
+    updatePreview();
+    scheduleSave();
+
+    // Highlight the first [placeholder] so agents can just start typing over it.
+    jumpToPlaceholder(blockEls.action, true, 0);
+  });
+
+  attachPlaceholderTabbing(blockEls.action);
+
+  blockEls.removeBtn.addEventListener("click", async () => {
+    const hasContent = !isCmdBlockEmpty(block);
+    if (hasContent) {
+      const ok = await showConfirm("Remove this CMD template? Anything entered in it will be lost.");
+      if (!ok) return;
+    }
+    removeCmdBlock(block);
+  });
+
+  cmdBlocks.push(block);
+  renumberCmdBlocks();
+  setFormEnabled(claimStarted); // match the form's current lock state
+  return block;
+}
+
+function removeCmdBlock(block) {
+  const idx = cmdBlocks.indexOf(block);
+  if (idx === -1) return;
+  block.els.root.remove();
+  cmdBlocks.splice(idx, 1);
+  renumberCmdBlocks();
+  updatePreview();
+  scheduleSave();
+}
+
+function clearCmdBlockFields(block) {
+  CMD_FIELD_KEYS.forEach((key) => (block.els[key].value = ""));
+  block.els.actionTemplateSelect.value = "";
+  block.lastAppliedTemplateKey = "";
+  block.els.repRef.placeholder = DEFAULT_REP_REF_PLACEHOLDER;
+}
+
+function isCmdBlockEmpty(block) {
+  // Date is auto-filled to today when a block is created, so it doesn't
+  // count as "the agent entered something" on its own -- otherwise a block
+  // added by accident and left untouched would still get logged.
+  return CMD_FIELD_KEYS.filter((key) => key !== "cmdDate").every((key) => !block.els[key].value.trim());
+}
+
+addCmdBlockBtn.addEventListener("click", () => {
+  const block = addCmdBlock();
+  updatePreview();
+  scheduleSave();
+  block.els.cmdCarrier.focus();
+});
+
+// ---------- CMD template text ----------
+function buildBlockTemplateText(block) {
+  const v = (key) => block.els[key].value.trim();
   return (
 `Date: ${v("cmdDate")}
 Carrier: ${v("cmdCarrier")}
@@ -1980,6 +2249,15 @@ Original Allowed Amount: ${v("originalAllowed")}
 Action: ${v("action")}
 Rep & Ref#: ${v("repRef")}`
   );
+}
+
+function buildTemplate() {
+  if (cmdBlocks.length <= 1) {
+    return cmdBlocks.length ? buildBlockTemplateText(cmdBlocks[0]) : "";
+  }
+  return cmdBlocks
+    .map((block, i) => `--- Claim ${i + 1} of ${cmdBlocks.length} ---\n${buildBlockTemplateText(block)}`)
+    .join("\n\n");
 }
 
 function updatePreview() {
@@ -2052,11 +2330,16 @@ async function copyTemplate() {
 // starts clean. Used both after a successful log and when an agent
 // declines to log a blank claim.
 function resetFormForNextClaim() {
-  FIELD_IDS.forEach((id) => (els[id].value = ""));
-  els.cmdDate.value = todayString();
-  actionTemplateSelect.value = "";
-  lastAppliedTemplateKey = "";
-  els.repRef.placeholder = DEFAULT_REP_REF_PLACEHOLDER;
+  HEADER_FIELD_IDS.forEach((id) => (els[id].value = ""));
+
+  // Drop every block but the first -- that one always stays as the
+  // guaranteed starting block for the next claim.
+  while (cmdBlocks.length > 1) {
+    removeCmdBlock(cmdBlocks[cmdBlocks.length - 1]);
+  }
+  clearCmdBlockFields(cmdBlocks[0]);
+  cmdBlocks[0].els.cmdDate.value = todayString();
+
   syncAllClearButtons();
   endClaimSession();
   saveNow();
@@ -2083,12 +2366,17 @@ async function endSession() {
     }
   }
 
+  // Always log the first block (even if blank, same as the original
+  // single-block behavior); additional blocks only get logged if the agent
+  // actually put something in them.
+  const blocksToLog = cmdBlocks.filter((block, i) => i === 0 || !isCmdBlockEmpty(block));
+
   const timestamp = new Date().toISOString();
-  const payload = { type: "logEntry", timestamp };
-  FIELD_IDS.forEach((id) => (payload[id] = els[id].value.trim()));
-  payload.loggedByName = getAgentName();
-  payload.loggedByEmail = getAgentEmail();
-  payload.durationSeconds = claimStartTime
+  const headerValues = {};
+  HEADER_FIELD_IDS.forEach((id) => (headerValues[id] = els[id].value.trim()));
+  const loggedByName = getAgentName();
+  const loggedByEmail = getAgentEmail();
+  const durationSeconds = claimStartTime
     ? Math.max(0, Math.round((Date.now() - new Date(claimStartTime).getTime()) / 1000))
     : 0;
 
@@ -2096,24 +2384,45 @@ async function endSession() {
 
   endSessionBtn.disabled = true;
   endSessionBtn.textContent = "Logging\u2026";
-  showStatus("Sending entry to your log sheet\u2026", "info", 0);
+  showStatus(
+    blocksToLog.length > 1
+      ? `Sending ${blocksToLog.length} entries to your log sheet\u2026`
+      : "Sending entry to your log sheet\u2026",
+    "info",
+    0
+  );
 
   try {
     // Apps Script Web Apps generally don't send back the CORS headers needed
     // for the browser to read the response, even when the write itself
     // succeeds. Using no-cors avoids the browser blocking the request over
     // that, at the cost of not being able to inspect the response body.
-    await fetch(WEB_APP_URL, {
-      method: "POST",
-      mode: "no-cors",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify(payload)
-    });
+    // Each CMD block is logged as its own row (same shape the sheet already
+    // expects), sent one at a time.
+    for (const block of blocksToLog) {
+      const payload = { type: "logEntry", timestamp, ...headerValues };
+      CMD_FIELD_KEYS.forEach((key) => (payload[key] = block.els[key].value.trim()));
+      payload.loggedByName = loggedByName;
+      payload.loggedByEmail = loggedByEmail;
+      payload.durationSeconds = durationSeconds;
+
+      await fetch(WEB_APP_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload)
+      });
+    }
 
     // With no-cors the response is opaque, so we can't confirm success from
     // the server's reply. If fetch didn't throw, the request reached Google;
     // spot-check the sheet occasionally to confirm rows are landing.
-    showStatus("Logged to sheet \u2713 \u2014 session ended.", "ok");
+    showStatus(
+      blocksToLog.length > 1
+        ? `Logged ${blocksToLog.length} entries to sheet \u2713 \u2014 session ended.`
+        : "Logged to sheet \u2713 \u2014 session ended.",
+      "ok"
+    );
     logHint.textContent = `Last logged: ${patientNameForHint} at ${new Date().toLocaleTimeString()}`;
 
     resetFormForNextClaim();
@@ -2128,66 +2437,13 @@ async function endSession() {
 }
 
 // ---------- Event wiring ----------
-FIELD_IDS.forEach((id) => {
+HEADER_FIELD_IDS.forEach((id) => {
   els[id].addEventListener("input", () => {
     updatePreview();
     scheduleSave();
     if (id === "patientName" || id === "carrierTop") schedulePresenceUpdate();
   });
 });
-
-["billedAmount", "originalAllowed"].forEach((id) => {
-  els[id].addEventListener("blur", () => {
-    formatCurrencyOnBlur(els[id]);
-    updatePreview();
-    scheduleSave();
-  });
-});
-
-syncCarrierBtn.addEventListener("click", () => {
-  els.cmdCarrier.value = els.carrierTop.value;
-  if (CLEAR_BUTTONS.cmdCarrier) CLEAR_BUTTONS.cmdCarrier.hidden = !els.cmdCarrier.value;
-  updatePreview();
-  scheduleSave();
-});
-
-let lastAppliedTemplateKey = "";
-
-actionTemplateSelect.addEventListener("change", async () => {
-  const key = actionTemplateSelect.value;
-  if (!key) {
-    lastAppliedTemplateKey = "";
-    return;
-  }
-
-  const template = ACTION_TEMPLATES[key];
-  const current = els.action.value.trim();
-  if (current && current !== template) {
-    const ok = await showConfirm("Replace the current Action text with this template?");
-    if (!ok) {
-      actionTemplateSelect.value = lastAppliedTemplateKey; // revert to whatever's actually applied
-      return;
-    }
-  }
-
-  els.action.value = template;
-  lastAppliedTemplateKey = key;
-
-  // Guide text only -- shows when the field is empty, never inserted as
-  // real content, so there's nothing an agent needs to erase.
-  els.repRef.placeholder = TPA_PROPOSAL_KEYS.includes(key)
-    ? TPA_PROPOSAL_REP_REF_HINT
-    : DEFAULT_REP_REF_PLACEHOLDER;
-
-  syncAllClearButtons();
-  updatePreview();
-  scheduleSave();
-
-  // Highlight the first [placeholder] so agents can just start typing over it.
-  jumpToPlaceholder(els.action, true, 0);
-});
-
-attachPlaceholderTabbing(els.action);
 
 copyBtn.addEventListener("click", copyTemplate);
 endSessionBtn.addEventListener("click", endSession);
