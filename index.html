@@ -2519,6 +2519,12 @@ function tickAgentTimers() {
 }
 
 let agentsListLoaded = false;
+// Don't flash the "Couldn't load" banner on a single transient blip -- the
+// backend occasionally drops a request under load. Only surface the error
+// after this many *consecutive* failures; until then we quietly keep the
+// last-good list on screen. Any success resets the counter.
+const LOAD_ERROR_THRESHOLD = 3;
+let agentsFailCount = 0;
 
 async function fetchActiveAgents() {
   if (!WEB_APP_URL || WEB_APP_URL === "PASTE_YOUR_DEPLOYED_WEB_APP_URL_HERE") {
@@ -2547,17 +2553,23 @@ async function fetchActiveAgents() {
     // delete the real session. The server's own stale-heartbeat filter
     // (see SESSION_STALE_MS in Apps_Script_Code.gs) already clears out
     // anything truly abandoned, without that false-positive risk.
+    agentsFailCount = 0;
     renderAgents(data.sessions || []);
     agentsListLoaded = true;
     agentsStatus.hidden = true;
     lastAgentsSyncTime = Date.now();
     tickAgentTimers();
   } catch (err) {
-    if (!agentsListLoaded) agentsList.innerHTML = "";
-    agentsListLoaded = true;
-    agentsStatus.hidden = false;
-    agentsStatus.textContent = "Couldn't load. Make sure the Apps Script is redeployed with the shared-presence endpoints (see Apps_Script_Code.gs).";
-    agentsStatus.className = "log-status err";
+    agentsFailCount++;
+    if (agentsFailCount >= LOAD_ERROR_THRESHOLD) {
+      if (!agentsListLoaded) agentsList.innerHTML = "";
+      agentsListLoaded = true;
+      agentsStatus.hidden = false;
+      agentsStatus.textContent = "Couldn't load. Make sure the Apps Script is redeployed with the shared-presence endpoints (see Apps_Script_Code.gs).";
+      agentsStatus.className = "log-status err";
+    }
+    // Below the threshold: keep the last-good list on screen and stay quiet --
+    // a single dropped poll shouldn't alarm anyone.
   }
 }
 
@@ -2615,6 +2627,7 @@ function applyCompletedFilter() {
 }
 
 let completedListLoaded = false;
+let completedFailCount = 0;
 
 async function fetchCompletedToday() {
   if (!WEB_APP_URL || WEB_APP_URL === "PASTE_YOUR_DEPLOYED_WEB_APP_URL_HERE") return;
@@ -2630,17 +2643,22 @@ async function fetchCompletedToday() {
     if (!data || data.status === "error") {
       throw new Error((data && data.message) || "Sheet returned an error.");
     }
+    completedFailCount = 0;
     lastCompletedEntries = data.entries || [];
     populateCompletedAgentFilter(lastCompletedEntries);
     applyCompletedFilter();
     completedListLoaded = true;
     completedStatus.hidden = true;
   } catch (err) {
-    if (!completedListLoaded) completedList.innerHTML = "";
-    completedListLoaded = true;
-    completedStatus.hidden = false;
-    completedStatus.textContent = "Couldn't load today's completed claims. Make sure the Apps Script is redeployed (see Apps_Script_Code.gs).";
-    completedStatus.className = "log-status err";
+    completedFailCount++;
+    if (completedFailCount >= LOAD_ERROR_THRESHOLD) {
+      if (!completedListLoaded) completedList.innerHTML = "";
+      completedListLoaded = true;
+      completedStatus.hidden = false;
+      completedStatus.textContent = "Couldn't load today's completed claims. Make sure the Apps Script is redeployed (see Apps_Script_Code.gs).";
+      completedStatus.className = "log-status err";
+    }
+    // Below the threshold: keep the last-good list and stay quiet.
   }
 }
 
@@ -2878,6 +2896,27 @@ window.addEventListener("beforeunload", () => {
   } catch (err) {
     // best-effort only
   }
+});
+
+// When the app tab sits in the background, the browser throttles its timers:
+// a hidden tab's 20s heartbeat can slow to only once a minute (Chrome's
+// "intensive throttling" kicks in after ~5 min hidden). That gap can let the
+// server's stale-session timer evict an agent who's genuinely still working,
+// just heads-down in another tab. So the instant this tab becomes visible
+// again, re-announce presence, realign the heartbeat interval (so we're not
+// waiting on a throttled tick), and refresh the shared panel -- this makes the
+// session self-repair immediately on return instead of waiting for the next
+// (possibly throttled) heartbeat.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") return;
+  if (!claimStarted) return;
+  postPresence("sessionHeartbeat", {
+    patientName: els.patientName.value.trim(),
+    carrier: els.carrierTop.value.trim(),
+    startTime: claimStartTime
+  });
+  startHeartbeat(); // clears the old (possibly throttled) interval, starts fresh
+  fetchActiveAgents();
 });
 
 // ---------- Live clock (always Eastern time, regardless of the agent's
