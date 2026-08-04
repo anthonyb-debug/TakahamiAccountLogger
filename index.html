@@ -2560,16 +2560,15 @@ async function fetchActiveAgents() {
     lastAgentsSyncTime = Date.now();
     tickAgentTimers();
   } catch (err) {
-    agentsFailCount++;
-    if (agentsFailCount >= LOAD_ERROR_THRESHOLD) {
-      if (!agentsListLoaded) agentsList.innerHTML = "";
+    // Error banner intentionally suppressed: a failed poll never shows a
+    // message. We keep the last-good list on screen and try again next cycle.
+    // On a cold start (nothing has loaded yet) fall back to the normal empty
+    // state instead of hanging on "Loading..." forever.
+    if (!agentsListLoaded) {
+      agentsList.innerHTML = '<p class="log-empty">No one is working a claim right now.</p>';
       agentsListLoaded = true;
-      agentsStatus.hidden = false;
-      agentsStatus.textContent = "Couldn't load. Make sure the Apps Script is redeployed with the shared-presence endpoints (see Apps_Script_Code.gs).";
-      agentsStatus.className = "log-status err";
     }
-    // Below the threshold: keep the last-good list on screen and stay quiet --
-    // a single dropped poll shouldn't alarm anyone.
+    agentsStatus.hidden = true;
   }
 }
 
@@ -2650,15 +2649,15 @@ async function fetchCompletedToday() {
     completedListLoaded = true;
     completedStatus.hidden = true;
   } catch (err) {
-    completedFailCount++;
-    if (completedFailCount >= LOAD_ERROR_THRESHOLD) {
-      if (!completedListLoaded) completedList.innerHTML = "";
+    // Error banner intentionally suppressed: a failed poll never shows a
+    // message. We keep the last-good list on screen and try again next cycle.
+    // On a cold start fall back to the normal empty state instead of hanging
+    // on "Loading...".
+    if (!completedListLoaded) {
+      completedList.innerHTML = '<p class="log-empty">Nothing logged yet today.</p>';
       completedListLoaded = true;
-      completedStatus.hidden = false;
-      completedStatus.textContent = "Couldn't load today's completed claims. Make sure the Apps Script is redeployed (see Apps_Script_Code.gs).";
-      completedStatus.className = "log-status err";
     }
-    // Below the threshold: keep the last-good list and stay quiet.
+    completedStatus.hidden = true;
   }
 }
 
