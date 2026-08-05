@@ -1551,6 +1551,8 @@ function signOutAgent() {
   }
   currentAgent = null;
   storageSet(AGENT_IDENTITY_KEY, null);
+  myLogCache = null;        // don't let the next agent see this one's cached log
+  myLogCacheEmail = null;
   if (window.google && google.accounts && google.accounts.id) {
     google.accounts.id.disableAutoSelect();
   }
@@ -2403,11 +2405,29 @@ async function endSession() {
 
   const patientNameForHint = els.patientName.value.trim();
 
+  // Build every row's payload up front, before ending the session, so the
+  // recorded data -- including the captured duration -- can't be affected by
+  // anything below.
+  const payloads = blocksToLog.map((block) => {
+    const payload = { type: "logEntry", timestamp, ...headerValues };
+    CMD_FIELD_KEYS.forEach((key) => (payload[key] = block.els[key].value.trim()));
+    payload.loggedByName = loggedByName;
+    payload.loggedByEmail = loggedByEmail;
+    payload.durationSeconds = durationSeconds;
+    return payload;
+  });
+
+  // End the session locally RIGHT NOW -- stop the timer, drop presence, flip
+  // back to the start gate -- instead of waiting on the sheet write. This is
+  // what fixes the "timer keeps running after End Session" problem: the timer
+  // stops unconditionally the moment the agent ends, even if the write below
+  // is slow or fails outright. The duration is already baked into the payloads.
   endSessionBtn.disabled = true;
   endSessionBtn.textContent = "Logging\u2026";
+  endClaimSession();
   showStatus(
-    blocksToLog.length > 1
-      ? `Sending ${blocksToLog.length} entries to your log sheet\u2026`
+    payloads.length > 1
+      ? `Sending ${payloads.length} entries to your log sheet\u2026`
       : "Sending entry to your log sheet\u2026",
     "info",
     0
@@ -2415,44 +2435,44 @@ async function endSession() {
 
   try {
     // Apps Script Web Apps generally don't send back the CORS headers needed
-    // for the browser to read the response, even when the write itself
-    // succeeds. Using no-cors avoids the browser blocking the request over
-    // that, at the cost of not being able to inspect the response body.
-    // Each CMD block is logged as its own row (same shape the sheet already
-    // expects), sent one at a time.
-    for (const block of blocksToLog) {
-      const payload = { type: "logEntry", timestamp, ...headerValues };
-      CMD_FIELD_KEYS.forEach((key) => (payload[key] = block.els[key].value.trim()));
-      payload.loggedByName = loggedByName;
-      payload.loggedByEmail = loggedByEmail;
-      payload.durationSeconds = durationSeconds;
-
-      await fetch(WEB_APP_URL, {
+    // for the browser to read the response, so we use no-cors (the response is
+    // opaque -- only a real network-level failure rejects here). Fire every row
+    // in parallel instead of awaiting them one at a time, so logging N CMD
+    // blocks costs roughly one round trip's wait, not N.
+    await Promise.all(payloads.map((payload) =>
+      fetch(WEB_APP_URL, {
         method: "POST",
         mode: "no-cors",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify(payload)
-      });
-    }
+      })
+    ));
 
     // With no-cors the response is opaque, so we can't confirm success from
     // the server's reply. If fetch didn't throw, the request reached Google;
     // spot-check the sheet occasionally to confirm rows are landing.
     showStatus(
-      blocksToLog.length > 1
-        ? `Logged ${blocksToLog.length} entries to sheet \u2713 \u2014 session ended.`
+      payloads.length > 1
+        ? `Logged ${payloads.length} entries to sheet \u2713 \u2014 session ended.`
         : "Logged to sheet \u2713 \u2014 session ended.",
       "ok"
     );
     logHint.textContent = `Last logged: ${patientNameForHint} at ${new Date().toLocaleTimeString()}`;
 
+    // Clear the fields for the next claim (the session itself already ended
+    // above). Drop the My Log cache so the just-logged rows show on next open.
     resetFormForNextClaim();
+    myLogCache = null;
+    myLogCacheEmail = null;
     // Small delay gives Apps Script a moment to finish writing before we poll.
     setTimeout(fetchCompletedToday, 1200);
   } catch (err) {
-    showStatus("Couldn't reach the sheet. Check your connection or Web App URL. Your session is still active \u2014 try End Session again.", "err", 6000);
+    // Only a genuine network failure (offline / can't reach Google) lands here.
+    // The session is already ended, but the typed details are left in place so
+    // nothing is lost -- the agent can start the claim again to re-send.
+    showStatus("Couldn\u2019t reach the sheet \u2014 your entry may not have been saved. Your typed details are still here; start the claim again to re-send.", "err", 8000);
   } finally {
-    endSessionBtn.disabled = !claimStarted;
+    endSessionBtn.disabled = false;
     endSessionBtn.textContent = "End Session";
   }
 }
@@ -2735,13 +2755,19 @@ function renderMyLog(entries) {
   });
 }
 
-async function fetchMyLog() {
-  myLogList.innerHTML = "";
-  myLogStatus.hidden = false;
-  myLogStatus.textContent = "Loading\u2026";
-  myLogStatus.className = "log-status info";
+// Last successfully-loaded entries, kept so reopening the panel can paint
+// instantly instead of blanking to "Loading..." while the (inherently slow)
+// Apps Script round trip runs. myLogCacheEmail guards against showing one
+// agent's cached log to a different agent who signs in on the same page.
+let myLogCache = null;
+let myLogCacheEmail = null;
+
+async function fetchMyLog(opts) {
+  opts = opts || {};
 
   if (!WEB_APP_URL || WEB_APP_URL === "PASTE_YOUR_DEPLOYED_WEB_APP_URL_HERE") {
+    myLogList.innerHTML = "";
+    myLogStatus.hidden = false;
     myLogStatus.textContent = "Sheet isn't connected yet.";
     myLogStatus.className = "log-status err";
     return;
@@ -2749,9 +2775,26 @@ async function fetchMyLog() {
 
   const email = getAgentEmail();
   if (!email) {
+    myLogList.innerHTML = "";
+    myLogStatus.hidden = false;
     myLogStatus.textContent = "Sign in first to see your log.";
     myLogStatus.className = "log-status err";
     return;
+  }
+
+  // Cache hit for this agent: show it right away and refresh quietly in the
+  // background. A forced Refresh (or no cache yet) shows the full load state.
+  const usedCache = myLogCache && myLogCacheEmail === email && !opts.force;
+  if (usedCache) {
+    renderMyLog(myLogCache);
+    myLogStatus.hidden = false;
+    myLogStatus.textContent = "Refreshing\u2026";
+    myLogStatus.className = "log-status info";
+  } else {
+    myLogList.innerHTML = "";
+    myLogStatus.hidden = false;
+    myLogStatus.textContent = "Loading\u2026";
+    myLogStatus.className = "log-status info";
   }
 
   try {
@@ -2761,11 +2804,23 @@ async function fetchMyLog() {
     if (!data || data.status === "error") {
       throw new Error((data && data.message) || "Sheet returned an error.");
     }
-    renderMyLog(data.entries || []);
+    const entries = data.entries || [];
+    myLogCache = entries;
+    myLogCacheEmail = email;
+    renderMyLog(entries);
     myLogStatus.hidden = true;
   } catch (err) {
-    myLogStatus.textContent = "Couldn't load your log. Make sure the Apps Script is redeployed with the \u201cmyLog\u201d endpoint (see Apps_Script_Code.gs).";
-    myLogStatus.className = "log-status err";
+    // If cached entries are already on screen, keep them and just note the
+    // refresh failed -- don't wipe good data back to an error message.
+    if (usedCache) {
+      myLogStatus.hidden = false;
+      myLogStatus.textContent = "Showing your last loaded log \u2014 couldn\u2019t refresh just now.";
+      myLogStatus.className = "log-status err";
+    } else {
+      myLogStatus.hidden = false;
+      myLogStatus.textContent = "Couldn't load your log. Make sure the Apps Script is redeployed with the \u201cmyLog\u201d endpoint (see Apps_Script_Code.gs).";
+      myLogStatus.className = "log-status err";
+    }
   }
 }
 
@@ -2792,7 +2847,7 @@ function closeMyLogModal() {
 
 myLogBtn.addEventListener("click", openMyLog);
 closeMyLogBtn.addEventListener("click", closeMyLogModal);
-refreshMyLogBtn.addEventListener("click", fetchMyLog);
+refreshMyLogBtn.addEventListener("click", () => fetchMyLog({ force: true }));
 myLogModal.addEventListener("click", (e) => {
   if (e.target === myLogModal) closeMyLogModal();
 });
