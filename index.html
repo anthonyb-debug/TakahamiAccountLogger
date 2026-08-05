@@ -1047,10 +1047,6 @@ input:disabled, textarea:disabled, select:disabled {
             <span>DOS</span>
             <input type="text" id="dos" placeholder="MM/DD/YYYY or range" autocomplete="off" />
           </label>
-          <label class="field">
-            <span># of Claims</span>
-            <input type="number" min="0" inputmode="numeric" id="numClaims" autocomplete="off" />
-          </label>
         </div>
       </div>
     </section>
@@ -1200,13 +1196,13 @@ const DEFAULT_REP_REF_PLACEHOLDER = "Rep name / callback ref #";
 
 // "Header" fields: one set per claim session, entered once.
 const HEADER_FIELD_IDS = [
-  "patientName", "facility", "carrierTop", "dob", "memberId", "tin", "npi", "dos", "numClaims"
+  "patientName", "facility", "carrierTop", "dob", "memberId", "tin", "npi", "dos"
 ];
 
 // CMD Template fields: these repeat once per CMD block (one per TPA call /
 // claim). Each block's inputs are looked up by data-field, not id, so any
 // number of blocks can exist without id collisions.
-const CMD_FIELD_KEYS = ["cmdDate", "cmdCarrier", "tpa", "billedAmount", "originalAllowed", "action", "repRef"];
+const CMD_FIELD_KEYS = ["cmdDate", "cmdCarrier", "tpa", "numClaims", "billedAmount", "originalAllowed", "action", "repRef"];
 
 const els = {};
 HEADER_FIELD_IDS.forEach((id) => (els[id] = document.getElementById(id)));
@@ -2048,10 +2044,16 @@ function cmdBlockMarkup() {
         </label>
       </div>
 
-      <label class="field">
-        <span>TPA</span>
-        <input type="text" data-field="tpa" autocomplete="off" />
-      </label>
+      <div class="field-row">
+        <label class="field">
+          <span>TPA</span>
+          <input type="text" data-field="tpa" autocomplete="off" />
+        </label>
+        <label class="field">
+          <span># of Claims</span>
+          <input type="number" min="0" inputmode="numeric" data-field="numClaims" autocomplete="off" />
+        </label>
+      </div>
 
       <div class="field-row">
         <label class="field">
@@ -2142,6 +2144,7 @@ function addCmdBlock(opts) {
     cmdDate: root.querySelector('[data-field="cmdDate"]'),
     cmdCarrier: root.querySelector('[data-field="cmdCarrier"]'),
     tpa: root.querySelector('[data-field="tpa"]'),
+    numClaims: root.querySelector('[data-field="numClaims"]'),
     billedAmount: root.querySelector('[data-field="billedAmount"]'),
     originalAllowed: root.querySelector('[data-field="originalAllowed"]'),
     actionTemplateSelect: root.querySelector('[data-field="actionTemplateSelect"]'),
@@ -2683,7 +2686,6 @@ Member ID: ${v("Member ID")}
 TIN: ${v("TIN")}
 NPI: ${v("NPI")}
 DOS: ${v("DOS")}
-Number of claims: ${v("# of Claims")}
 
 Date: ${v("CMD Date")}
 Carrier: ${v("CMD Carrier")}
