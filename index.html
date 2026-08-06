@@ -1542,6 +1542,7 @@ function setCurrentAgent(agent) {
   currentAgent = agent;
   storageSet(AGENT_IDENTITY_KEY, agent);
   renderAgentIdentity();
+  startAgentWarmups(); // prefetch My Log + keep the backend warm from here on
 }
 
 function signOutAgent() {
@@ -1553,6 +1554,7 @@ function signOutAgent() {
   storageSet(AGENT_IDENTITY_KEY, null);
   myLogCache = null;        // don't let the next agent see this one's cached log
   myLogCacheEmail = null;
+  stopKeepWarm();           // stop pinging the backend once nobody's signed in
   if (window.google && google.accounts && google.accounts.id) {
     google.accounts.id.disableAutoSelect();
   }
@@ -1855,6 +1857,7 @@ function init() {
     currentAgent = savedAgent;
   }
   renderAgentIdentity();
+  startAgentWarmups(); // if already signed in on load, warm up before first click
   initGoogleSignIn();
 
   // Always start with one CMD block; the draft restore below can add more
@@ -2763,10 +2766,46 @@ function renderMyLog(entries) {
 let myLogCache = null;
 let myLogCacheEmail = null;
 
+// --- cold-start mitigation -------------------------------------------------
+// Apps Script containers sleep after a few idle minutes; the next call then
+// pays a ~15s spin-up, which is what made the first "My Log" open feel stuck.
+// Two fixes, both started once an agent is signed in (see startAgentWarmups):
+//   1. Silently prefetch My Log right after sign-in, so the cold start burns
+//      off in the background and the first real open paints from cache.
+//   2. Ping the endpoint every few minutes to keep the container warm, so it
+//      rarely goes cold in the first place.
+let keepWarmInterval = null;
+const KEEP_WARM_MS = 4 * 60 * 1000; // 4 minutes
+
+function startAgentWarmups() {
+  if (!getAgentEmail()) return;   // only meaningful once actually signed in
+  fetchMyLog({ silent: true });   // warm the cache + container right now
+  stopKeepWarm();                 // never stack intervals across re-sign-ins
+  keepWarmInterval = setInterval(() => {
+    if (!getAgentEmail()) { stopKeepWarm(); return; }
+    // Cheapest possible call: the bare endpoint returns a tiny liveness blip
+    // (no sheet scan) but keeps the container spun up. Failures are ignored.
+    fetch(WEB_APP_URL).catch(() => {});
+  }, KEEP_WARM_MS);
+}
+
+function stopKeepWarm() {
+  if (keepWarmInterval) {
+    clearInterval(keepWarmInterval);
+    keepWarmInterval = null;
+  }
+}
+
 async function fetchMyLog(opts) {
   opts = opts || {};
+  // Silent mode: warm myLogCache (and the Apps Script container) in the
+  // background without touching the modal DOM or surfacing any errors. Used by
+  // the sign-in prefetch so the first real open paints instantly from cache
+  // instead of waiting out a cold start.
+  const silent = !!opts.silent;
 
   if (!WEB_APP_URL || WEB_APP_URL === "PASTE_YOUR_DEPLOYED_WEB_APP_URL_HERE") {
+    if (silent) return;
     myLogList.innerHTML = "";
     myLogStatus.hidden = false;
     myLogStatus.textContent = "Sheet isn't connected yet.";
@@ -2776,6 +2815,7 @@ async function fetchMyLog(opts) {
 
   const email = getAgentEmail();
   if (!email) {
+    if (silent) return;
     myLogList.innerHTML = "";
     myLogStatus.hidden = false;
     myLogStatus.textContent = "Sign in first to see your log.";
@@ -2786,16 +2826,18 @@ async function fetchMyLog(opts) {
   // Cache hit for this agent: show it right away and refresh quietly in the
   // background. A forced Refresh (or no cache yet) shows the full load state.
   const usedCache = myLogCache && myLogCacheEmail === email && !opts.force;
-  if (usedCache) {
-    renderMyLog(myLogCache);
-    myLogStatus.hidden = false;
-    myLogStatus.textContent = "Refreshing\u2026";
-    myLogStatus.className = "log-status info";
-  } else {
-    myLogList.innerHTML = "";
-    myLogStatus.hidden = false;
-    myLogStatus.textContent = "Loading\u2026";
-    myLogStatus.className = "log-status info";
+  if (!silent) {
+    if (usedCache) {
+      renderMyLog(myLogCache);
+      myLogStatus.hidden = false;
+      myLogStatus.textContent = "Refreshing\u2026";
+      myLogStatus.className = "log-status info";
+    } else {
+      myLogList.innerHTML = "";
+      myLogStatus.hidden = false;
+      myLogStatus.textContent = "Loading\u2026";
+      myLogStatus.className = "log-status info";
+    }
   }
 
   try {
@@ -2808,9 +2850,12 @@ async function fetchMyLog(opts) {
     const entries = data.entries || [];
     myLogCache = entries;
     myLogCacheEmail = email;
-    renderMyLog(entries);
-    myLogStatus.hidden = true;
+    if (!silent) {
+      renderMyLog(entries);
+      myLogStatus.hidden = true;
+    }
   } catch (err) {
+    if (silent) return; // background warm-up: fail quietly, retry on next ping
     // If cached entries are already on screen, keep them and just note the
     // refresh failed -- don't wipe good data back to an error message.
     if (usedCache) {
